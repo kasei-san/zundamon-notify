@@ -38,7 +38,7 @@ echo '{"type":"notification","id":"test-2","message":"テスト通知"}' | socat
 メッセージ型（`PERMISSION_REQUEST`, `NOTIFICATION`, `STOP`, `DISMISS`）の定義とパース/シリアライズ。
 
 ### レンダラー (`renderer/`)
-吹き出し UI の表示制御。Permission は許可/拒否ボタン付き（590秒タイムアウト）。Notification・Stop はユーザーが×ボタンで閉じるか、dismiss メッセージで消去。
+吹き出し UI の表示制御。Permission は許可/拒否ボタン付き（590秒タイムアウト）。Notification・Stop はユーザーが×ボタンで閉じるか、dismiss メッセージで消去。キャラクターのドラッグ&ドロップによるウィンドウ移動にも対応（JavaScript + IPC で実装、`-webkit-app-region: drag` は未使用）。
 
 ### Hook スクリプト (`hooks/`)
 Claude Code の hook から呼ばれる bash スクリプト。`zundamon-permission.sh` は Python3 で stdin から直接 JSON パースし、socat で UDS に送信（ブロッキング、590秒タイムアウト）。`zundamon-notify.sh` は Notification hook で、`permission_prompt` 由来の通知（"Claude needs your permission"を含むメッセージ）をスクリプト内でフィルタリングしスキップする。`zundamon-dismiss.sh` は PostToolUse で、`zundamon-pre-dismiss.sh` は UserPromptSubmit と PreToolUse で発火し、残った吹き出しを dismiss する。
