@@ -11,4 +11,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onPermissionDismissed: (callback) => ipcRenderer.on('permission-dismissed', (_event, data) => callback(data)),
   onDismissBubble: (callback) => ipcRenderer.on('dismiss-bubble', () => callback()),
   showContextMenu: () => ipcRenderer.send('show-context-menu'),
+  onShortcutAllow: (callback) => ipcRenderer.on('shortcut-allow', () => callback()),
+  onShortcutDeny: (callback) => ipcRenderer.on('shortcut-deny', () => callback()),
 });

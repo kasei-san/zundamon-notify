@@ -15,6 +15,9 @@ class SocketServer {
     this.server = null;
     // permission_request の接続を保持 (id -> socket)
     this.pendingConnections = new Map();
+    // コールバック（main.js から設定）
+    this.onPermissionRequest = null;
+    this.onPermissionDismiss = null;
   }
 
   start() {
@@ -59,11 +62,16 @@ class SocketServer {
 
       socket.on('close', () => {
         // 切断されたpending接続を削除し、レンダラーに通知
+        let dismissed = false;
         for (const [id, s] of this.pendingConnections) {
           if (s === socket) {
             this.pendingConnections.delete(id);
             this.mainWindow.webContents.send('permission-dismissed', { id });
+            dismissed = true;
           }
+        }
+        if (dismissed && this.pendingConnections.size === 0 && this.onPermissionDismiss) {
+          this.onPermissionDismiss();
         }
       });
     });
@@ -87,6 +95,7 @@ class SocketServer {
       s.end();
     }
     this.pendingConnections.clear();
+    if (this.onPermissionDismiss) this.onPermissionDismiss();
   }
 
   handleMessage(msg, socket) {
@@ -103,6 +112,7 @@ class SocketServer {
         this.pendingConnections.set(msg.id, socket);
         console.log('Pending connections:', [...this.pendingConnections.keys()]);
         this.mainWindow.webContents.send('permission-request', msg);
+        if (this.onPermissionRequest) this.onPermissionRequest(msg);
         break;
 
       case MESSAGE_TYPES.NOTIFICATION:

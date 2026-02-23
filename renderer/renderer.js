@@ -168,6 +168,28 @@ window.electronAPI.onDismissBubble(() => {
   }
 });
 
+// グローバルショートカットで許可/拒否
+window.electronAPI.onShortcutAllow(() => {
+  if (currentRequestId) {
+    window.electronAPI.sendPermissionResponse({
+      id: currentRequestId,
+      decision: 'allow',
+    });
+    hideBubble();
+  }
+});
+
+window.electronAPI.onShortcutDeny(() => {
+  if (currentRequestId) {
+    window.electronAPI.sendPermissionResponse({
+      id: currentRequestId,
+      decision: 'deny',
+      message: 'ユーザーが拒否したのだ',
+    });
+    hideBubble();
+  }
+});
+
 // ドラッグ&ドロップによるウィンドウ移動
 function setupDrag() {
   let isDragging = false;

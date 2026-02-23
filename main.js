@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, Menu, globalShortcut } = require('electron');
 const path = require('path');
 const { SocketServer } = require('./src/socket-server');
 
@@ -46,6 +46,7 @@ function createWindow() {
   // Permission Requestレスポンス
   ipcMain.on('permission-response', (_event, response) => {
     console.log('Permission response received:', JSON.stringify(response));
+    unregisterPermissionShortcuts();
     if (socketServer) {
       socketServer.sendResponse(response);
     }
@@ -82,7 +83,23 @@ function createWindow() {
 
   // UDSサーバー起動
   socketServer = new SocketServer(mainWindow);
+  socketServer.onPermissionRequest = () => registerPermissionShortcuts();
+  socketServer.onPermissionDismiss = () => unregisterPermissionShortcuts();
   socketServer.start();
+}
+
+function registerPermissionShortcuts() {
+  globalShortcut.register('Ctrl+Shift+Y', () => {
+    mainWindow.webContents.send('shortcut-allow');
+  });
+  globalShortcut.register('Ctrl+Shift+N', () => {
+    mainWindow.webContents.send('shortcut-deny');
+  });
+}
+
+function unregisterPermissionShortcuts() {
+  globalShortcut.unregister('Ctrl+Shift+Y');
+  globalShortcut.unregister('Ctrl+Shift+N');
 }
 
 app.whenReady().then(createWindow);
@@ -98,4 +115,8 @@ app.on('before-quit', () => {
   if (socketServer) {
     socketServer.stop();
   }
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });

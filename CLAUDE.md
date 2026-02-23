@@ -29,7 +29,7 @@ echo '{"type":"notification","id":"test-2","message":"テスト通知"}' | socat
 通信フロー: **Claude Code hook → bash スクリプト → UDS (`/tmp/zundamon-claude.sock`) → Electron main → IPC → renderer**
 
 ### メインプロセス (`main.js`)
-透明・フレームレス・常時最前面のウィンドウを画面右下に配置。UDS サーバーを起動し、IPC でレンダラーと通信。吹き出し非表示時はマウスイベント透過（クリックスルー）。右クリックコンテキストメニュー（再起動・終了）の処理も担当。
+透明・フレームレス・常時最前面のウィンドウを画面右下に配置。UDS サーバーを起動し、IPC でレンダラーと通信。吹き出し非表示時はマウスイベント透過（クリックスルー）。右クリックコンテキストメニュー（再起動・終了）の処理も担当。Permission request 表示中のみグローバルショートカット（`Ctrl+Shift+Y` / `Ctrl+Shift+N`）を `globalShortcut` API で登録し、レスポンス送信後に解除。
 
 ### UDS サーバー (`src/socket-server.js`)
 `/tmp/zundamon-claude.sock` で JSON Lines プロトコルを処理。`permission_request` は接続を保持してレスポンス待ち、`notification`/`stop` は即座にクローズ。
@@ -38,7 +38,7 @@ echo '{"type":"notification","id":"test-2","message":"テスト通知"}' | socat
 メッセージ型（`PERMISSION_REQUEST`, `NOTIFICATION`, `STOP`, `DISMISS`）の定義とパース/シリアライズ。
 
 ### レンダラー (`renderer/`)
-吹き出し UI の表示制御。Permission は許可/拒否ボタン付き（590秒タイムアウト）。`permission_suggestions` がある場合は「次回から聞かないのだ」ボタンを表示し、押すと許可 + `updatedPermissions` をレスポンスに含める。Notification・Stop はユーザーが×ボタンで閉じるか、dismiss メッセージで消去。キャラクターのドラッグ&ドロップによるウィンドウ移動にも対応（JavaScript + IPC で実装、`-webkit-app-region: drag` は未使用）。キャラクターの右クリックでコンテキストメニュー（再起動・終了）を表示。
+吹き出し UI の表示制御。Permission は許可/拒否ボタン付き（590秒タイムアウト）。`permission_suggestions` がある場合は「次回から聞かないのだ」ボタンを表示し、押すと許可 + `updatedPermissions` をレスポンスに含める。Notification・Stop はユーザーが×ボタンで閉じるか、dismiss メッセージで消去。キャラクターのドラッグ&ドロップによるウィンドウ移動にも対応（JavaScript + IPC で実装、`-webkit-app-region: drag` は未使用）。キャラクターの右クリックでコンテキストメニュー（再起動・終了）を表示。グローバルショートカット（`Ctrl+Shift+Y` で許可、`Ctrl+Shift+N` で拒否）にも対応。
 
 ### Hook スクリプト (`hooks/`)
 Claude Code の hook から呼ばれる bash スクリプト。`zundamon-permission.sh` は Python3 で stdin から直接 JSON パースし、`permission_suggestions` があればUDSリクエストに含める。socat で UDS に送信（ブロッキング、590秒タイムアウト）。レスポンスに `updatedPermissions` があれば Claude Code 出力の `decision` に含めて返す。`zundamon-notify.sh` は Notification hook で、`permission_prompt` 由来の通知（"Claude needs your permission"を含むメッセージ）をスクリプト内でフィルタリングしスキップする。`zundamon-dismiss.sh` は PostToolUse で、`zundamon-pre-dismiss.sh` は UserPromptSubmit と PreToolUse で発火し、残った吹き出しを dismiss する。
