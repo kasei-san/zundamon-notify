@@ -46,6 +46,17 @@ class SocketServer {
         }
       });
 
+      socket.on('end', () => {
+        // ソケット終了時にバッファに残ったデータを処理
+        if (buffer.trim()) {
+          const msg = parseMessage(buffer);
+          buffer = '';
+          if (msg) {
+            this.handleMessage(msg, socket);
+          }
+        }
+      });
+
       socket.on('close', () => {
         // 切断されたpending接続を削除し、レンダラーに通知
         for (const [id, s] of this.pendingConnections) {
