@@ -26,11 +26,21 @@ fi
 echo ""
 echo "LaunchAgent をセットアップ中..."
 
+# node のパスを取得（nvm/volta/nodenv 等に依存しないようインストール時に解決）
+NODE_BIN_DIR="$(dirname "$(which node)")"
+echo "Node.js パス: $NODE_BIN_DIR"
+
 # ログディレクトリ作成
 mkdir -p "$LOG_DIR"
 
+# 起動ラッパースクリプトのプレースホルダーを置換して生成
+LAUNCHER_TEMPLATE="$SCRIPT_DIR/scripts/zundamon-notify.template"
+LAUNCHER_DEST="$SCRIPT_DIR/scripts/zundamon-notify"
+sed -e "s|__NODE_BIN_DIR__|$NODE_BIN_DIR|g" \
+    "$LAUNCHER_TEMPLATE" > "$LAUNCHER_DEST"
+chmod +x "$LAUNCHER_DEST"
+
 # plist のプレースホルダーを置換して配置
-# テンプレートからシンボリックリンクではなく実体ファイルを生成
 sed -e "s|__WORKING_DIRECTORY__|$SCRIPT_DIR|g" \
     -e "s|__HOME__|$HOME|g" \
     "$PLIST_SRC" > "$PLIST_DEST"
