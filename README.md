@@ -241,6 +241,10 @@ echo '{"type":"stop","id":"test","message":"入力を待っているのだ！"}'
 # Permission Request テスト（ボタンクリックでレスポンスが返る）
 echo '{"type":"permission_request","id":"test","tool_name":"Bash","tool_input":{"command":"echo hello"},"description":"echo hello"}' \
   | socat -t 30 - UNIX-CONNECT:/tmp/zundamon-claude.sock
+
+# Permission Request テスト（「次回から聞かない」ボタン付き）
+echo '{"type":"permission_request","id":"test","tool_name":"Bash","tool_input":{"command":"echo hello"},"description":"echo hello","permission_suggestions":[{"type":"toolAlwaysAllow","tool":"Bash"}]}' \
+  | socat -t 30 - UNIX-CONNECT:/tmp/zundamon-claude.sock
 ```
 
 ## 既知の不具合

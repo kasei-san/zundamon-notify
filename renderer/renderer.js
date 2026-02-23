@@ -4,9 +4,11 @@ const bubbleButtons = document.getElementById('bubble-buttons');
 const btnAllow = document.getElementById('btn-allow');
 const btnDeny = document.getElementById('btn-deny');
 const btnClose = document.getElementById('btn-close');
+const btnAlwaysAllow = document.getElementById('btn-always-allow');
 const character = document.getElementById('character');
 
 let currentRequestId = null;
+let currentPermissionSuggestions = null;
 let bubbleVisible = false;
 
 // マウスがUI要素に乗ったらクリックスルーを解除、離れたら復活
@@ -67,6 +69,8 @@ function hideBubble() {
   bubble.classList.add('hidden');
   bubbleVisible = false;
   currentRequestId = null;
+  currentPermissionSuggestions = null;
+  btnAlwaysAllow.classList.add('hidden');
 
   // クリックスルーを復活
   window.electronAPI.setIgnoreMouse(true);
@@ -85,6 +89,14 @@ window.electronAPI.onPermissionRequest((data) => {
   // 長すぎる場合は切り詰め
   if (description.length > 120) {
     description = description.substring(0, 120) + '...';
+  }
+
+  // permission_suggestionsがあれば「次回から聞かない」ボタンを表示
+  currentPermissionSuggestions = data.permission_suggestions || null;
+  if (currentPermissionSuggestions && currentPermissionSuggestions.length > 0) {
+    btnAlwaysAllow.classList.remove('hidden');
+  } else {
+    btnAlwaysAllow.classList.add('hidden');
   }
 
   showBubble(`🔧 ${toolName}\n${description}`, true);
@@ -107,6 +119,21 @@ btnAllow.addEventListener('click', () => {
       id: currentRequestId,
       decision: 'allow',
     });
+    hideBubble();
+  }
+});
+
+// 「次回から聞かない」ボタン（許可 + updatedPermissions）
+btnAlwaysAllow.addEventListener('click', () => {
+  if (currentRequestId) {
+    const response = {
+      id: currentRequestId,
+      decision: 'allow',
+    };
+    if (currentPermissionSuggestions) {
+      response.updatedPermissions = currentPermissionSuggestions;
+    }
+    window.electronAPI.sendPermissionResponse(response);
     hideBubble();
   }
 });

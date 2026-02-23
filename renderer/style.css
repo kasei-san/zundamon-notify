@@ -101,11 +101,31 @@ html, body {
 
 #bubble-buttons {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
 }
 
 #bubble-buttons.hidden {
+  display: none;
+}
+
+/* 「次回から聞かない」ボタン */
+.btn-always-allow {
+  width: 100%;
+  background: #fff;
+  color: #5b9a2f;
+  border: 2px solid #5b9a2f !important;
+  font-size: 12px !important;
+  padding: 5px 12px !important;
+}
+
+.btn-always-allow:hover {
+  background: #f0f7e8;
+  box-shadow: 0 2px 8px rgba(91, 154, 47, 0.2);
+}
+
+.btn-always-allow.hidden {
   display: none;
 }
 
