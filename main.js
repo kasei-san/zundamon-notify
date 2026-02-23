@@ -95,11 +95,15 @@ function registerPermissionShortcuts() {
   globalShortcut.register('Ctrl+Shift+N', () => {
     mainWindow.webContents.send('shortcut-deny');
   });
+  globalShortcut.register('Ctrl+Shift+A', () => {
+    mainWindow.webContents.send('shortcut-always-allow');
+  });
 }
 
 function unregisterPermissionShortcuts() {
   globalShortcut.unregister('Ctrl+Shift+Y');
   globalShortcut.unregister('Ctrl+Shift+N');
+  globalShortcut.unregister('Ctrl+Shift+A');
 }
 
 app.whenReady().then(createWindow);

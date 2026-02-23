@@ -190,6 +190,20 @@ window.electronAPI.onShortcutDeny(() => {
   }
 });
 
+window.electronAPI.onShortcutAlwaysAllow(() => {
+  if (currentRequestId) {
+    const response = {
+      id: currentRequestId,
+      decision: 'allow',
+    };
+    if (currentPermissionSuggestions) {
+      response.updatedPermissions = currentPermissionSuggestions;
+    }
+    window.electronAPI.sendPermissionResponse(response);
+    hideBubble();
+  }
+});
+
 // ドラッグ&ドロップによるウィンドウ移動
 function setupDrag() {
   let isDragging = false;

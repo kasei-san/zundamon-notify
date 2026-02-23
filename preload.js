@@ -13,4 +13,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showContextMenu: () => ipcRenderer.send('show-context-menu'),
   onShortcutAllow: (callback) => ipcRenderer.on('shortcut-allow', () => callback()),
   onShortcutDeny: (callback) => ipcRenderer.on('shortcut-deny', () => callback()),
+  onShortcutAlwaysAllow: (callback) => ipcRenderer.on('shortcut-always-allow', () => callback()),
 });

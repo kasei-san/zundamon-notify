@@ -164,8 +164,7 @@ Permission request の吹き出し表示中のみ、以下のグローバルシ�
 |---------------|------|
 | `Ctrl+Shift+Y` | 許可（allow） |
 | `Ctrl+Shift+N` | 拒否（deny） |
-
-※「次回から聞かないのだ」（updatedPermissions）はショートカットからは発火しません。吹き出しのボタンをクリックしてください。
+| `Ctrl+Shift+A` | 次回から聞かない（allow + updatedPermissions） |
 
 ## アーキテクチャ
 
