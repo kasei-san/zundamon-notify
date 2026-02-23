@@ -1,0 +1,11 @@
+#!/bin/bash
+# ずんだもん通知アプリ 起動ラッパー
+# LaunchAgent から呼ばれる。ログイン項目にこのファイル名が表示される。
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$SCRIPT_DIR"
+
+# nvm 管理の node を直接参照（LaunchAgent はログインシェルを通さないため）
+NODE_DIR="$HOME/.nvm/versions/node/v24.13.0/bin"
+export PATH="$NODE_DIR:/usr/local/bin:/opt/homebrew/bin:$PATH"
+exec npx electron .
