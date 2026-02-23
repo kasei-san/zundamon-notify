@@ -39,6 +39,10 @@ function createWindow() {
     mainWindow.setIgnoreMouseEvents(ignore, { forward: true });
   });
 
+  // ウィンドウ位置の取得・設定（ドラッグ移動用）
+  ipcMain.handle('get-window-position', () => mainWindow.getPosition());
+  ipcMain.on('set-window-position', (_event, x, y) => mainWindow.setPosition(x, y));
+
   // Permission Requestレスポンス
   ipcMain.on('permission-response', (_event, response) => {
     console.log('Permission response received:', JSON.stringify(response));
