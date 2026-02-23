@@ -60,6 +60,31 @@ html, body {
   z-index: 1;
 }
 
+/* 閉じるボタン */
+.btn-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #999;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 50%;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.btn-close:hover {
+  color: #e55;
+  background: rgba(238, 85, 85, 0.1);
+}
+
+.btn-close.hidden {
+  display: none;
+}
+
 #bubble.hidden {
   opacity: 0;
   transform: scale(0.8);
