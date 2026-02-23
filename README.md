@@ -182,7 +182,7 @@ zundamon-notify/
 │   ├── zundamon-permission.sh # PermissionRequest hook（ブロッキング）
 │   ├── zundamon-notify.sh     # Notification hook
 │   ├── zundamon-stop.sh       # Stop hook（入力待ち通知）
-│   ├── zundamon-pre-dismiss.sh # PreToolUse hook（吹き出しdismiss）
+│   ├── zundamon-pre-dismiss.sh # UserPromptSubmit hook（吹き出しdismiss）
 │   └── zundamon-dismiss.sh    # PostToolUse hook（吹き出しdismiss）
 ├── .claude/
 │   └── skills/
