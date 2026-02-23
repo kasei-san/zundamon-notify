@@ -125,4 +125,11 @@ btnDeny.addEventListener('click', () => {
   }
 });
 
+// コンソール側で許可/拒否された場合、吹き出しを閉じる
+window.electronAPI.onPermissionDismissed((data) => {
+  if (currentRequestId === data.id) {
+    hideBubble();
+  }
+});
+
 setupMouseForwarding();

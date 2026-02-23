@@ -23,7 +23,7 @@ class SocketServer {
       fs.unlinkSync(SOCKET_PATH);
     }
 
-    this.server = net.createServer((socket) => {
+    this.server = net.createServer({ allowHalfOpen: true }, (socket) => {
       let buffer = '';
 
       socket.on('data', (chunk) => {
@@ -47,10 +47,11 @@ class SocketServer {
       });
 
       socket.on('close', () => {
-        // 切断されたpending接続を削除
+        // 切断されたpending接続を削除し、レンダラーに通知
         for (const [id, s] of this.pendingConnections) {
           if (s === socket) {
             this.pendingConnections.delete(id);
+            this.mainWindow.webContents.send('permission-dismissed', { id });
           }
         }
       });
@@ -65,8 +66,26 @@ class SocketServer {
     });
   }
 
+  /**
+   * 未応答のpending接続を全てdismissする
+   * コンソール側で許可/拒否された後、次のメッセージが来た時に古い吹き出しを消す
+   */
+  dismissPendingConnections() {
+    for (const [id, s] of this.pendingConnections) {
+      this.mainWindow.webContents.send('permission-dismissed', { id });
+      s.end();
+    }
+    this.pendingConnections.clear();
+  }
+
   handleMessage(msg, socket) {
     console.log('Received message:', JSON.stringify(msg));
+
+    // 新しいメッセージが来たら、古いpending permissionを全てdismiss
+    if (this.pendingConnections.size > 0) {
+      this.dismissPendingConnections();
+    }
+
     switch (msg.type) {
       case MESSAGE_TYPES.PERMISSION_REQUEST:
         // 接続を保持してレスポンスを待つ
@@ -82,6 +101,12 @@ class SocketServer {
 
       case MESSAGE_TYPES.STOP:
         this.mainWindow.webContents.send('stop', msg);
+        socket.end();
+        break;
+
+      case MESSAGE_TYPES.DISMISS:
+        // pending permissionの吹き出しを全て閉じる
+        this.dismissPendingConnections();
         socket.end();
         break;
 
