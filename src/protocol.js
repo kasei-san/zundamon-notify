@@ -7,6 +7,7 @@ const MESSAGE_TYPES = {
   PERMISSION_REQUEST: 'permission_request',
   NOTIFICATION: 'notification',
   STOP: 'stop',
+  DISMISS: 'dismiss',
 };
 
 /**

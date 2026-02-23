@@ -10,31 +10,31 @@ if [ ! -S "$SOCKET_PATH" ]; then
   exit 0
 fi
 
-# stdinからhookデータを読み取り
-INPUT=$(cat)
-
-# hookデータからtool_name, tool_input, descriptionを抽出
-# Claude Code hookのstdinはトップレベルにtool_name, tool_inputがある
-TOOL_NAME=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null)
-TOOL_INPUT=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get('tool_input',{})))" 2>/dev/null)
-DESCRIPTION=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); ti=d.get('tool_input',{}); print(ti.get('command','') or ti.get('description','') or str(ti)[:200])" 2>/dev/null)
-
-# UUIDを生成
-ID=$(python3 -c "import uuid; print(uuid.uuid4())")
-
-# UDS経由でアプリに送信し、レスポンスを待つ
+# stdinからhookデータを読み取り、Pythonで安全にパースしてUDSリクエストJSON生成
+# シェル変数展開を経由しないのでエスケープ問題が起きない
 REQUEST=$(python3 -c "
-import json
+import sys, json, uuid
+
+data = json.load(sys.stdin)
+tool_input = data.get('tool_input', {})
+description = tool_input.get('command', '') or tool_input.get('description', '') or str(tool_input)[:200]
+
 req = {
     'type': 'permission_request',
-    'id': '$ID',
-    'tool_name': '$TOOL_NAME',
-    'tool_input': json.loads('$TOOL_INPUT' or '{}'),
-    'description': '''$DESCRIPTION'''
+    'id': str(uuid.uuid4()),
+    'tool_name': data.get('tool_name', ''),
+    'tool_input': tool_input,
+    'description': description
 }
 print(json.dumps(req))
 " 2>/dev/null)
 
+# REQUESTが空ならフォールバック
+if [ -z "$REQUEST" ]; then
+  exit 0
+fi
+
+# UDS経由でアプリに送信し、レスポンスを待つ
 RESPONSE=$(echo "$REQUEST" | socat -t "$TIMEOUT" - UNIX-CONNECT:"$SOCKET_PATH" 2>/dev/null)
 
 # レスポンスが空（タイムアウトやエラー）ならフォールバック
