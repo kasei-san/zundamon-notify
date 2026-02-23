@@ -147,10 +147,13 @@ html, body {
 
 /* キャラクター */
 #character {
-  -webkit-app-region: drag;
   cursor: grab;
   user-select: none;
   padding: 5px;
+}
+
+#character.dragging {
+  cursor: grabbing;
 }
 
 #character img {

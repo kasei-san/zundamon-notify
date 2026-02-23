@@ -141,4 +141,38 @@ window.electronAPI.onDismissBubble(() => {
   }
 });
 
+// ドラッグ&ドロップによるウィンドウ移動
+function setupDrag() {
+  let isDragging = false;
+  let startMouseX = 0;
+  let startMouseY = 0;
+  let startWinX = 0;
+  let startWinY = 0;
+
+  character.addEventListener('mousedown', async (e) => {
+    if (e.button !== 0) return;
+    isDragging = true;
+    startMouseX = e.screenX;
+    startMouseY = e.screenY;
+    const [winX, winY] = await window.electronAPI.getWindowPosition();
+    startWinX = winX;
+    startWinY = winY;
+    character.classList.add('dragging');
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const dx = e.screenX - startMouseX;
+    const dy = e.screenY - startMouseY;
+    window.electronAPI.setWindowPosition(startWinX + dx, startWinY + dy);
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!isDragging) return;
+    isDragging = false;
+    character.classList.remove('dragging');
+  });
+}
+
 setupMouseForwarding();
+setupDrag();

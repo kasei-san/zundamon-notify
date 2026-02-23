@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onNotification: (callback) => ipcRenderer.on('notification', (_event, data) => callback(data)),
   onStop: (callback) => ipcRenderer.on('stop', (_event, data) => callback(data)),
   sendPermissionResponse: (response) => ipcRenderer.send('permission-response', response),
+  getWindowPosition: () => ipcRenderer.invoke('get-window-position'),
+  setWindowPosition: (x, y) => ipcRenderer.send('set-window-position', x, y),
   onPermissionDismissed: (callback) => ipcRenderer.on('permission-dismissed', (_event, data) => callback(data)),
   onDismissBubble: (callback) => ipcRenderer.on('dismiss-bubble', () => callback()),
 });
