@@ -172,11 +172,37 @@ zundamon-notify/
 │   ├── zundamon-notify.sh     # Notification hook
 │   ├── zundamon-stop.sh       # Stop hook（入力待ち通知）
 │   └── zundamon-dismiss.sh    # PostToolUse hook（吹き出しdismiss）
+├── .claude/
+│   └── skills/
+│       └── issue-and-fix/     # 問題→issue→plan→修正→PR の一気通貫スキル
+│           ├── SKILL.md
+│           └── INSTRUCTIONS.md
 ├── com.zundamon.notify.plist   # LaunchAgent 定義（テンプレート）
 └── scripts/
     ├── install.sh             # インストールスクリプト（LaunchAgent 登録込み）
     └── uninstall.sh           # アンインストールスクリプト
 ```
+
+## Claude Code スキル
+
+本リポジトリには Claude Code 用のカスタムスキルが含まれています。
+
+| スキル | 呼び出し | 説明 |
+|--------|----------|------|
+| **issue-and-fix** | `/issue-and-fix <問題の説明>` | 問題を GitHub issue 化 → plan → 修正 → PR 作成までを一気通貫で実行 |
+
+### issue-and-fix
+
+問題報告から修正PRまでの一連のフローを1コマンドで実行するスキルです。コンテキストが切れても issue を見ればフルコンテキストが残るように設計されています。
+
+**実行フロー:**
+1. GitHub issue を作成
+2. 問題を調査して plan を作成
+3. plan の内容を issue にコメントとして追記
+4. ブランチを切って修正を実施
+5. PR を作成して issue とリンク（`Closes #番号`）
+6. issue に完了コメントを追加
+7. ユーザーに報告
 
 ## 動作確認（手動テスト）
 
