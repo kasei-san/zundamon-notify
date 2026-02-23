@@ -242,6 +242,10 @@ echo '{"type":"permission_request","id":"test","tool_name":"Bash","tool_input":{
   | socat -t 30 - UNIX-CONNECT:/tmp/zundamon-claude.sock
 ```
 
+## 既知の不具合
+
+- **コンソールで Permission を拒否した場合、吹き出しが即座に消えない**: コンソール側で「no」を選択すると、Permission 吹き出しがその場では消えず、次にユーザーがメッセージを入力した時点（UserPromptSubmit hook 発火時）に消える
+
 ## 立ち絵の差し替え
 
 `assets/zundamon.png` を差し替えれば、別の画像に変更できます。
