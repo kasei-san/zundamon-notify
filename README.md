@@ -70,9 +70,8 @@ brew install socat
         ]
       }
     ],
-    "PreToolUse": [
+    "UserPromptSubmit": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "command",
@@ -138,7 +137,7 @@ npm start
 | **PermissionRequest** | 吹き出しにツール名・コマンドを表示。「許可するのだ！」「ダメなのだ！」ボタンで応答 |
 | **Stop**（入力待ち） | 「入力を待っているのだ！」と吹き出し表示（×ボタンで閉じる） |
 | **Notification** | 通知メッセージを吹き出し表示（×ボタンで閉じる） |
-| **PreToolUse** | ツール実行開始時に残っている吹き出し（Stop等）を自動dismiss |
+| **UserPromptSubmit** | ユーザー入力時に残っている吹き出し（Stop等）を自動dismiss |
 | **PostToolUse** | ツール実行完了時に残っている吹き出しを自動dismiss |
 
 アプリ未起動時は hook がフォールバック（exit 0）するため、通常の Claude Code の動作に影響しません。

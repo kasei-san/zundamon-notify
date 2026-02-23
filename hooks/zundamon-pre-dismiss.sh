@@ -1,6 +1,6 @@
 #!/bin/bash
-# PreToolUse Hook - 非ブロッキング
-# ツール実行開始時に、残っている吹き出し（Stop等）をdismissする
+# UserPromptSubmit Hook - 非ブロッキング
+# ユーザー入力時に、残っている吹き出し（Stop等）をdismissする
 
 SOCKET_PATH="/tmp/zundamon-claude.sock"
 
