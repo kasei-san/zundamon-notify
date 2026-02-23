@@ -3,10 +3,10 @@ const bubbleText = document.getElementById('bubble-text');
 const bubbleButtons = document.getElementById('bubble-buttons');
 const btnAllow = document.getElementById('btn-allow');
 const btnDeny = document.getElementById('btn-deny');
+const btnClose = document.getElementById('btn-close');
 const character = document.getElementById('character');
 
 let currentRequestId = null;
-let autoHideTimer = null;
 let bubbleVisible = false;
 
 // マウスがUI要素に乗ったらクリックスルーを解除、離れたら復活
@@ -46,14 +46,15 @@ function isPointInElement(e, el) {
 }
 
 function showBubble(text, showButtons = false) {
-  clearTimeout(autoHideTimer);
   bubbleText.textContent = text;
   bubbleVisible = true;
 
   if (showButtons) {
     bubbleButtons.classList.remove('hidden');
+    btnClose.classList.add('hidden');
   } else {
     bubbleButtons.classList.add('hidden');
+    btnClose.classList.remove('hidden');
   }
 
   bubble.classList.remove('hidden');
@@ -92,15 +93,11 @@ window.electronAPI.onPermissionRequest((data) => {
 // Notification
 window.electronAPI.onNotification((data) => {
   showBubble(data.message || '通知なのだ！');
-
-  autoHideTimer = setTimeout(hideBubble, 5000);
 });
 
 // Stop (入力待ち)
 window.electronAPI.onStop((data) => {
   showBubble(data.message || '入力を待っているのだ！');
-
-  autoHideTimer = setTimeout(hideBubble, 8000);
 });
 
 // ボタンクリック
@@ -123,6 +120,11 @@ btnDeny.addEventListener('click', () => {
     });
     hideBubble();
   }
+});
+
+// 閉じるボタン
+btnClose.addEventListener('click', () => {
+  hideBubble();
 });
 
 // コンソール側で許可/拒否された場合、吹き出しを閉じる
