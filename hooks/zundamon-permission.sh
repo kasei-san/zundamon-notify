@@ -26,6 +26,9 @@ req = {
     'tool_input': tool_input,
     'description': description
 }
+suggestions = data.get('permission_suggestions')
+if suggestions:
+    req['permission_suggestions'] = suggestions
 print(json.dumps(req))
 " 2>/dev/null)
 
@@ -42,14 +45,21 @@ if [ -z "$RESPONSE" ]; then
   exit 0
 fi
 
-# レスポンスからdecisionを抽出
-DECISION=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('decision',''))" 2>/dev/null)
+# レスポンスをPython3でパースし、Claude Code用JSON出力を生成
+echo "$RESPONSE" | python3 -c "
+import sys, json
 
-if [ "$DECISION" = "allow" ]; then
-  echo '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}'
-elif [ "$DECISION" = "deny" ]; then
-  echo '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"ずんだもんが拒否したのだ"}}}'
-else
-  # 不明なレスポンスはフォールバック
-  exit 0
-fi
+resp = json.load(sys.stdin)
+decision = resp.get('decision', '')
+
+if decision == 'allow':
+    output = {'behavior': 'allow'}
+    updated = resp.get('updatedPermissions')
+    if updated:
+        output['updatedPermissions'] = updated
+    print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PermissionRequest', 'decision': output}}))
+elif decision == 'deny':
+    print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PermissionRequest', 'decision': {'behavior': 'deny', 'message': 'ずんだもんが拒否したのだ'}}}))
+else:
+    sys.exit(0)
+" 2>/dev/null || exit 0
