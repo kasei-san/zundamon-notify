@@ -23,7 +23,7 @@ class SocketServer {
       fs.unlinkSync(SOCKET_PATH);
     }
 
-    this.server = net.createServer((socket) => {
+    this.server = net.createServer({ allowHalfOpen: true }, (socket) => {
       let buffer = '';
 
       socket.on('data', (chunk) => {
