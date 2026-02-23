@@ -1,0 +1,10 @@
+#!/bin/bash
+# ずんだもん通知アプリ 起動ラッパー
+# LaunchAgent から呼ばれる。ログイン項目にこのファイル名が表示される。
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$SCRIPT_DIR"
+
+# __NODE_BIN_DIR__ は install.sh が埋め込む（LaunchAgent はログインシェルを通さないため）
+export PATH="__NODE_BIN_DIR__:/usr/local/bin:/opt/homebrew/bin:$PATH"
+exec npx electron .

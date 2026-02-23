@@ -78,8 +78,33 @@ brew install socat
 
 ## 使い方
 
+### サービスとして自動起動（推奨）
+
 ```bash
-# アプリを起動
+# インストール（LaunchAgent 登録 + ログイン時自動起動）
+bash scripts/install.sh
+```
+
+インストール後はログイン時に自動起動します。手動でサービスを制御するには：
+
+```bash
+# サービスの状態確認
+launchctl list | grep zundamon
+
+# 手動で起動/停止
+launchctl start com.zundamon.notify
+launchctl stop com.zundamon.notify
+
+# ログの確認
+tail -f ~/Library/Logs/zundamon-notify/stdout.log
+
+# アンインストール（サービス解除）
+bash scripts/uninstall.sh
+```
+
+### 手動起動
+
+```bash
 cd ~/work/zundamon-notify
 npm start
 ```
@@ -134,8 +159,10 @@ zundamon-notify/
 │   ├── zundamon-permission.sh # PermissionRequest hook（ブロッキング）
 │   ├── zundamon-notify.sh     # Notification hook
 │   └── zundamon-stop.sh       # Stop hook（入力待ち通知）
+├── com.zundamon.notify.plist   # LaunchAgent 定義（テンプレート）
 └── scripts/
-    └── install.sh             # インストールスクリプト
+    ├── install.sh             # インストールスクリプト（LaunchAgent 登録込み）
+    └── uninstall.sh           # アンインストールスクリプト
 ```
 
 ## 動作確認（手動テスト）
