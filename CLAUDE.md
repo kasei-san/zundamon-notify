@@ -42,3 +42,10 @@ echo '{"type":"notification","id":"test-2","message":"テスト通知"}' | socat
 
 ### Hook スクリプト (`hooks/`)
 Claude Code の hook から呼ばれる bash スクリプト。`zundamon-permission.sh` は Python3 で stdin から直接 JSON パースし、socat で UDS に送信（ブロッキング、590秒タイムアウト）。`zundamon-dismiss.sh` は PostToolUse で発火し、コンソール側で許可/拒否された場合に残った吹き出しを dismiss する。
+
+## 開発ルール
+
+### ドキュメント更新
+コードを変更した場合は、以下のドキュメントも合わせて更新すること：
+- **CLAUDE.md**: アーキテクチャ説明、プロトコル定義、hookスクリプトの説明など
+- **README.md**: hooks設定例、ファイル構成、イベント表など
