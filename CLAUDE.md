@@ -35,10 +35,10 @@ echo '{"type":"notification","id":"test-2","message":"テスト通知"}' | socat
 `/tmp/zundamon-claude.sock` で JSON Lines プロトコルを処理。`permission_request` は接続を保持してレスポンス待ち、`notification`/`stop` は即座にクローズ。
 
 ### プロトコル (`src/protocol.js`)
-メッセージ型（`PERMISSION_REQUEST`, `NOTIFICATION`, `STOP`）の定義とパース/シリアライズ。
+メッセージ型（`PERMISSION_REQUEST`, `NOTIFICATION`, `STOP`, `DISMISS`）の定義とパース/シリアライズ。
 
 ### レンダラー (`renderer/`)
 吹き出し UI の表示制御。Permission は許可/拒否ボタン付き（590秒タイムアウト）、Notification は5秒、Stop は8秒で自動消去。
 
 ### Hook スクリプト (`hooks/`)
-Claude Code の hook から呼ばれる bash スクリプト。Python3 で JSON パース/UUID 生成し、socat で UDS に送信。`zundamon-permission.sh` のみブロッキング（590秒タイムアウト）。
+Claude Code の hook から呼ばれる bash スクリプト。`zundamon-permission.sh` は Python3 で stdin から直接 JSON パースし、socat で UDS に送信（ブロッキング、590秒タイムアウト）。`zundamon-dismiss.sh` は PostToolUse で発火し、コンソール側で許可/拒否された場合に残った吹き出しを dismiss する。

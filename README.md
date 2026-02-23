@@ -69,6 +69,17 @@ brew install socat
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/work/zundamon-notify/hooks/zundamon-dismiss.sh"
+          }
+        ]
+      }
     ]
   }
 }
@@ -116,6 +127,7 @@ npm start
 | **PermissionRequest** | 吹き出しにツール名・コマンドを表示。「許可するのだ！」「ダメなのだ！」ボタンで応答 |
 | **Stop**（入力待ち） | 「入力を待っているのだ！」と吹き出し表示（8秒で自動消去） |
 | **Notification** | 通知メッセージを吹き出し表示（5秒で自動消去） |
+| **PostToolUse** | コンソール側で許可/拒否した場合、残っている吹き出しを自動dismiss |
 
 アプリ未起動時は hook がフォールバック（exit 0）するため、通常の Claude Code の動作に影響しません。
 
@@ -158,7 +170,8 @@ zundamon-notify/
 ├── hooks/
 │   ├── zundamon-permission.sh # PermissionRequest hook（ブロッキング）
 │   ├── zundamon-notify.sh     # Notification hook
-│   └── zundamon-stop.sh       # Stop hook（入力待ち通知）
+│   ├── zundamon-stop.sh       # Stop hook（入力待ち通知）
+│   └── zundamon-dismiss.sh    # PostToolUse hook（吹き出しdismiss）
 ├── com.zundamon.notify.plist   # LaunchAgent 定義（テンプレート）
 └── scripts/
     ├── install.sh             # インストールスクリプト（LaunchAgent 登録込み）
