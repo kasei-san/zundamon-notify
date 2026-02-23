@@ -15,6 +15,11 @@ INPUT=$(cat)
 ID=$(python3 -c "import uuid; print(uuid.uuid4())")
 MESSAGE=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('message','') or 'Claude Codeからの通知なのだ')" 2>/dev/null)
 
+# permission_prompt由来の通知はPermissionRequest hookで処理済みのためスキップ
+if echo "$MESSAGE" | grep -q "Claude needs your permission"; then
+  exit 0
+fi
+
 REQUEST=$(python3 -c "
 import json
 req = {'type': 'notification', 'id': '$ID', 'message': '''$MESSAGE'''}
