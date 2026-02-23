@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init:*)",
+      "Bash(npm init:*)",
+      "Bash(tail:*)",
+      "Bash(head:*)",
+      "Bash(echo {\"type\":\"stop\",\"id\":\"test1\",\"message\":\"入力を待っているのだ！\"}:*)",
+      "Bash(echo {\"type\":\"permission_request\",\"id\":\"test2\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"echo hello\"},\"description\":\"echo hello\"}:*)",
+      "Bash(chmod +x:*)",
+      "Bash(pkill:*)"
+    ]
+  }
+}

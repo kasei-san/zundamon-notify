@@ -1,0 +1,75 @@
+const { app, BrowserWindow, screen, ipcMain } = require('electron');
+const path = require('path');
+const { SocketServer } = require('./src/socket-server');
+
+let mainWindow;
+let socketServer;
+
+function createWindow() {
+  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+
+  const winWidth = 400;
+  const winHeight = 500;
+
+  mainWindow = new BrowserWindow({
+    width: winWidth,
+    height: winHeight,
+    x: screenWidth - winWidth,
+    y: screenHeight - winHeight,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    resizable: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+  // 吹き出し非表示時はクリックスルー
+  mainWindow.setIgnoreMouseEvents(true, { forward: true });
+
+  // レンダラーからのマウスイベント制御
+  ipcMain.on('set-ignore-mouse', (_event, ignore) => {
+    mainWindow.setIgnoreMouseEvents(ignore, { forward: true });
+  });
+
+  // Permission Requestレスポンス
+  ipcMain.on('permission-response', (_event, response) => {
+    console.log('Permission response received:', JSON.stringify(response));
+    if (socketServer) {
+      socketServer.sendResponse(response);
+    }
+  });
+
+  // デバッグ用: Cmd+Shift+I でDevTools
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    if (input.meta && input.shift && input.key === 'i') {
+      mainWindow.webContents.openDevTools({ mode: 'detach' });
+    }
+  });
+
+  // UDSサーバー起動
+  socketServer = new SocketServer(mainWindow);
+  socketServer.start();
+}
+
+app.whenReady().then(createWindow);
+
+app.on('window-all-closed', () => {
+  if (socketServer) {
+    socketServer.stop();
+  }
+  app.quit();
+});
+
+app.on('before-quit', () => {
+  if (socketServer) {
+    socketServer.stop();
+  }
+});

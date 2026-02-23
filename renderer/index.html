@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- 吹き出し -->
+    <div id="bubble" class="hidden">
+      <div id="bubble-text"></div>
+      <div id="bubble-buttons" class="hidden">
+        <button id="btn-allow" class="btn btn-allow">許可するのだ！</button>
+        <button id="btn-deny" class="btn btn-deny">ダメなのだ！</button>
+      </div>
+    </div>
+    <!-- キャラクター -->
+    <div id="character" class="draggable">
+      <img src="../assets/zundamon.png" alt="ずんだもん" draggable="false">
+    </div>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>

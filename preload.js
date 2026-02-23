@@ -1,0 +1,9 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  setIgnoreMouse: (ignore) => ipcRenderer.send('set-ignore-mouse', ignore),
+  onPermissionRequest: (callback) => ipcRenderer.on('permission-request', (_event, data) => callback(data)),
+  onNotification: (callback) => ipcRenderer.on('notification', (_event, data) => callback(data)),
+  onStop: (callback) => ipcRenderer.on('stop', (_event, data) => callback(data)),
+  sendPermissionResponse: (response) => ipcRenderer.send('permission-response', response),
+});

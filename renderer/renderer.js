@@ -1,0 +1,128 @@
+const bubble = document.getElementById('bubble');
+const bubbleText = document.getElementById('bubble-text');
+const bubbleButtons = document.getElementById('bubble-buttons');
+const btnAllow = document.getElementById('btn-allow');
+const btnDeny = document.getElementById('btn-deny');
+const character = document.getElementById('character');
+
+let currentRequestId = null;
+let autoHideTimer = null;
+let bubbleVisible = false;
+
+// マウスがUI要素に乗ったらクリックスルーを解除、離れたら復活
+function setupMouseForwarding() {
+  document.addEventListener('mouseenter', () => {
+    // 吹き出し表示中はクリックスルーを解除
+    if (bubbleVisible) {
+      window.electronAPI.setIgnoreMouse(false);
+    }
+  });
+
+  document.addEventListener('mouseleave', () => {
+    window.electronAPI.setIgnoreMouse(true);
+  });
+
+  // mousemoveでもチェック（forward: trueでmousemoveが来る）
+  document.addEventListener('mousemove', (e) => {
+    const isOverCharacter = isPointInElement(e, character);
+    const isOverBubble = bubbleVisible && isPointInElement(e, bubble);
+
+    if (isOverCharacter || isOverBubble) {
+      window.electronAPI.setIgnoreMouse(false);
+    } else if (!bubbleVisible) {
+      window.electronAPI.setIgnoreMouse(true);
+    }
+  });
+}
+
+function isPointInElement(e, el) {
+  const rect = el.getBoundingClientRect();
+  return (
+    e.clientX >= rect.left &&
+    e.clientX <= rect.right &&
+    e.clientY >= rect.top &&
+    e.clientY <= rect.bottom
+  );
+}
+
+function showBubble(text, showButtons = false) {
+  clearTimeout(autoHideTimer);
+  bubbleText.textContent = text;
+  bubbleVisible = true;
+
+  if (showButtons) {
+    bubbleButtons.classList.remove('hidden');
+  } else {
+    bubbleButtons.classList.add('hidden');
+  }
+
+  bubble.classList.remove('hidden');
+
+  // 吹き出し表示中はクリックスルーを解除
+  window.electronAPI.setIgnoreMouse(false);
+}
+
+function hideBubble() {
+  bubble.classList.add('hidden');
+  bubbleVisible = false;
+  currentRequestId = null;
+
+  // クリックスルーを復活
+  window.electronAPI.setIgnoreMouse(true);
+}
+
+// Permission Request
+window.electronAPI.onPermissionRequest((data) => {
+  currentRequestId = data.id;
+  const toolName = data.tool_name || 'Unknown';
+  let description = data.description || '';
+
+  if (data.tool_input && data.tool_input.command) {
+    description = data.tool_input.command;
+  }
+
+  // 長すぎる場合は切り詰め
+  if (description.length > 120) {
+    description = description.substring(0, 120) + '...';
+  }
+
+  showBubble(`🔧 ${toolName}\n${description}`, true);
+});
+
+// Notification
+window.electronAPI.onNotification((data) => {
+  showBubble(data.message || '通知なのだ！');
+
+  autoHideTimer = setTimeout(hideBubble, 5000);
+});
+
+// Stop (入力待ち)
+window.electronAPI.onStop((data) => {
+  showBubble(data.message || '入力を待っているのだ！');
+
+  autoHideTimer = setTimeout(hideBubble, 8000);
+});
+
+// ボタンクリック
+btnAllow.addEventListener('click', () => {
+  if (currentRequestId) {
+    window.electronAPI.sendPermissionResponse({
+      id: currentRequestId,
+      decision: 'allow',
+    });
+    hideBubble();
+  }
+});
+
+btnDeny.addEventListener('click', () => {
+  if (currentRequestId) {
+    window.electronAPI.sendPermissionResponse({
+      id: currentRequestId,
+      decision: 'deny',
+      message: 'ユーザーが拒否したのだ',
+    });
+    hideBubble();
+  }
+});
+
+setupMouseForwarding();
