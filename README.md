@@ -80,6 +80,17 @@ brew install socat
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/work/zundamon-notify/hooks/zundamon-pre-dismiss.sh"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Bash",
@@ -138,6 +149,7 @@ npm start
 | **Stop**（入力待ち） | 「入力を待っているのだ！」と吹き出し表示（×ボタンで閉じる） |
 | **Notification** | 通知メッセージを吹き出し表示（×ボタンで閉じる） |
 | **UserPromptSubmit** | ユーザー入力時に残っている吹き出し（Stop等）を自動dismiss |
+| **PreToolUse** | ツール実行開始時に残っている吹き出し（Permission等）を自動dismiss |
 | **PostToolUse** | ツール実行完了時に残っている吹き出しを自動dismiss |
 
 アプリ未起動時は hook がフォールバック（exit 0）するため、通常の Claude Code の動作に影響しません。
@@ -182,7 +194,7 @@ zundamon-notify/
 │   ├── zundamon-permission.sh # PermissionRequest hook（ブロッキング）
 │   ├── zundamon-notify.sh     # Notification hook
 │   ├── zundamon-stop.sh       # Stop hook（入力待ち通知）
-│   ├── zundamon-pre-dismiss.sh # UserPromptSubmit hook（吹き出しdismiss）
+│   ├── zundamon-pre-dismiss.sh # UserPromptSubmit/PreToolUse hook（吹き出しdismiss）
 │   └── zundamon-dismiss.sh    # PostToolUse hook（吹き出しdismiss）
 ├── .claude/
 │   └── skills/
@@ -229,6 +241,10 @@ echo '{"type":"stop","id":"test","message":"入力を待っているのだ！"}'
 echo '{"type":"permission_request","id":"test","tool_name":"Bash","tool_input":{"command":"echo hello"},"description":"echo hello"}' \
   | socat -t 30 - UNIX-CONNECT:/tmp/zundamon-claude.sock
 ```
+
+## 既知の不具合
+
+- **コンソールで Permission を拒否した場合、吹き出しが即座に消えない**: コンソール側で「no」を選択すると、Permission 吹き出しがその場では消えず、次にユーザーがメッセージを入力した時点（UserPromptSubmit hook 発火時）に消える
 
 ## 立ち絵の差し替え
 
