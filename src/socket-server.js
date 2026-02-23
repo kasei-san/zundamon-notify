@@ -107,6 +107,8 @@ class SocketServer {
       case MESSAGE_TYPES.DISMISS:
         // pending permissionの吹き出しを全て閉じる
         this.dismissPendingConnections();
+        // Notification/Stopの吹き出しも閉じる
+        this.mainWindow.webContents.send('dismiss-bubble');
         socket.end();
         break;
 

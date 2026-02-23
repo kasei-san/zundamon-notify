@@ -41,9 +41,15 @@ echo '{"type":"notification","id":"test-2","message":"テスト通知"}' | socat
 吹き出し UI の表示制御。Permission は許可/拒否ボタン付き（590秒タイムアウト）。Notification・Stop はユーザーが×ボタンで閉じるか、dismiss メッセージで消去。
 
 ### Hook スクリプト (`hooks/`)
-Claude Code の hook から呼ばれる bash スクリプト。`zundamon-permission.sh` は Python3 で stdin から直接 JSON パースし、socat で UDS に送信（ブロッキング、590秒タイムアウト）。`zundamon-dismiss.sh` は PostToolUse で発火し、コンソール側で許可/拒否された場合に残った吹き出しを dismiss する。
+Claude Code の hook から呼ばれる bash スクリプト。`zundamon-permission.sh` は Python3 で stdin から直接 JSON パースし、socat で UDS に送信（ブロッキング、590秒タイムアウト）。`zundamon-dismiss.sh` は PostToolUse で、`zundamon-pre-dismiss.sh` は UserPromptSubmit で発火し、残った吹き出しを dismiss する。
 
 ## 開発ルール
+
+### 動作確認時のアプリ再起動
+コード変更後に動作確認が必要な場合は、ユーザーに確認せずずんだもんアプリを再起動すること：
+```bash
+pkill -f "electron \." 2>/dev/null; sleep 1; npm start &
+```
 
 ### ドキュメント更新
 コードを変更した場合は、以下のドキュメントも合わせて更新すること：
