@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, ipcMain } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, Menu } = require('electron');
 const path = require('path');
 const { SocketServer } = require('./src/socket-server');
 
@@ -49,6 +49,28 @@ function createWindow() {
     if (socketServer) {
       socketServer.sendResponse(response);
     }
+  });
+
+  // 右クリックコンテキストメニュー
+  ipcMain.on('show-context-menu', () => {
+    const template = [
+      {
+        label: '再起動',
+        click: () => {
+          app.relaunch();
+          app.exit(0);
+        },
+      },
+      { type: 'separator' },
+      {
+        label: '終了',
+        click: () => {
+          app.quit();
+        },
+      },
+    ];
+    const menu = Menu.buildFromTemplate(template);
+    menu.popup({ window: mainWindow });
   });
 
   // デバッグ用: Cmd+Shift+I でDevTools

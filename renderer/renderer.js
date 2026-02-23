@@ -174,5 +174,11 @@ function setupDrag() {
   });
 }
 
+// 右クリックコンテキストメニュー
+character.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  window.electronAPI.showContextMenu();
+});
+
 setupMouseForwarding();
 setupDrag();

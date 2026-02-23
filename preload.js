@@ -10,4 +10,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setWindowPosition: (x, y) => ipcRenderer.send('set-window-position', x, y),
   onPermissionDismissed: (callback) => ipcRenderer.on('permission-dismissed', (_event, data) => callback(data)),
   onDismissBubble: (callback) => ipcRenderer.on('dismiss-bubble', () => callback()),
+  showContextMenu: () => ipcRenderer.send('show-context-menu'),
 });
