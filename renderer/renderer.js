@@ -134,4 +134,11 @@ window.electronAPI.onPermissionDismissed((data) => {
   }
 });
 
+// dismiss メッセージで吹き出しを閉じる（Notification/Stop用）
+window.electronAPI.onDismissBubble(() => {
+  if (bubbleVisible && !currentRequestId) {
+    hideBubble();
+  }
+});
+
 setupMouseForwarding();
