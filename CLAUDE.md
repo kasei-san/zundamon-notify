@@ -51,6 +51,9 @@ Claude Code の hook から呼ばれる bash スクリプト。`zundamon-permiss
 pkill -f "electron \." 2>/dev/null; sleep 1; npm start &
 ```
 
+### コミット後のPR作成
+コミットしたら、ユーザーに確認せず即座にPR作成まで実行すること（グローバルCLAUDE.mdの「作業完了時の報告フロー」に従う）。
+
 ### ドキュメント更新
 コードを変更した場合は、以下のドキュメントも合わせて更新すること：
 - **CLAUDE.md**: アーキテクチャ説明、プロトコル定義、hookスクリプトの説明など
