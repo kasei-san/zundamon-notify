@@ -1,7 +1,6 @@
 #!/bin/bash
 # UserPromptSubmit/PreToolUse Hook - 非ブロッキング
 # ユーザー入力時・ツール実行開始時に、残っている吹き出し（Stop等）をdismissする
-# UserPromptSubmitではセッション作成も兼ねる（cwd, pid, transcript_pathを含める）
 
 SOCKET_PATH="/tmp/zundamon-claude.sock"
 
@@ -10,20 +9,17 @@ if [ ! -S "$SOCKET_PATH" ]; then
   exit 0
 fi
 
-# stdinからsession_id, cwd, transcript_pathを抽出
+# stdinからsession_idを抽出
 INPUT=$(cat)
 
 REQUEST=$(echo "$INPUT" | python3 -c "
-import sys, json, os
+import sys, json
 
 data = json.load(sys.stdin)
 req = {
     'type': 'dismiss',
     'id': 'dismiss',
-    'session_id': data.get('session_id', 'default'),
-    'cwd': data.get('cwd', ''),
-    'pid': int(os.environ.get('PPID', 0)),
-    'transcript_path': data.get('transcript_path', '')
+    'session_id': data.get('session_id', 'default')
 }
 print(json.dumps(req))
 " 2>/dev/null)

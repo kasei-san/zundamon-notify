@@ -182,8 +182,6 @@ class SocketServer {
       }
 
       case MESSAGE_TYPES.DISMISS: {
-        // セッションが未作成なら作成する（UserPromptSubmitでのセッション開始検知）
-        this.getOrCreateSession(sessionId, msg);
         // 対象セッションのpendingのみクリア
         const session = this.sessions.get(sessionId);
         if (session) {
