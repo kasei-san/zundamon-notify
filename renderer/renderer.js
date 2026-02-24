@@ -8,6 +8,13 @@ const btnAlwaysAllow = document.getElementById('btn-always-allow');
 const character = document.getElementById('character');
 const appEl = document.getElementById('app');
 
+// HTMLエスケープ
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 // Permission リクエストのキュー（複数同時対応）
 let permissionQueue = [];
 let bubbleVisible = false;
@@ -47,8 +54,12 @@ function isPointInElement(e, el) {
   );
 }
 
-function showBubble(text, showButtons = false) {
-  bubbleText.textContent = text;
+function showBubble(text, showButtons = false, { html = false } = {}) {
+  if (html) {
+    bubbleText.innerHTML = text;
+  } else {
+    bubbleText.textContent = text;
+  }
   bubbleVisible = true;
 
   if (showButtons) {
@@ -86,6 +97,25 @@ function displayCurrentPermission() {
 
   const data = permissionQueue[0];
   const toolName = data.tool_name || 'Unknown';
+
+  // AskUserQuestion の場合は専用表示
+  if (toolName === 'AskUserQuestion' && data.tool_input && data.tool_input.questions && data.tool_input.questions.length > 0) {
+    const q = data.tool_input.questions[0];
+    const questionText = escapeHtml(q.question || '');
+    let optionsHtml = '';
+    if (q.options && q.options.length > 0) {
+      const items = q.options.map((opt, i) => {
+        const label = escapeHtml(opt.label || '');
+        const desc = opt.description ? escapeHtml(opt.description) : '';
+        return `<li><span class="ask-option-number">${i + 1}.</span> <span class="ask-option-label">${label}</span>${desc ? `<span class="ask-option-desc"> - ${desc}</span>` : ''}</li>`;
+      }).join('');
+      optionsHtml = `<ul class="ask-options-list">${items}</ul>`;
+    }
+    btnAlwaysAllow.classList.add('hidden');
+    showBubble(`<div class="ask-question">❓ ${questionText}</div>${optionsHtml}`, false, { html: true });
+    return;
+  }
+
   let description = data.description || '';
 
   if (data.tool_input && data.tool_input.command) {
