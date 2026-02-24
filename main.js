@@ -2,20 +2,56 @@ const { app, BrowserWindow, screen, ipcMain, Menu, globalShortcut } = require('e
 const path = require('path');
 const { SocketServer } = require('./src/socket-server');
 
-let mainWindow;
+// セッション別ウィンドウ管理: session_id -> BrowserWindow
+const windows = new Map();
 let socketServer;
 
-function createWindow() {
+// 色テーマパレット（セッションごとに順番に割り当て）
+// hueRotate: ずんだもん画像のhue-rotate角度（緑基準）
+const COLOR_THEMES = [
+  { name: 'green',  primary: '#5b9a2f', hoverBg: '#f0f7e8', shadow: 'rgba(91, 154, 47, @@)', hueRotate: 0 },
+  { name: 'blue',   primary: '#2f7a9a', hoverBg: '#e8f2f7', shadow: 'rgba(47, 122, 154, @@)', hueRotate: 180 },
+  { name: 'purple', primary: '#7a2f9a', hoverBg: '#f3e8f7', shadow: 'rgba(122, 47, 154, @@)', hueRotate: 270 },
+  { name: 'orange', primary: '#9a6f2f', hoverBg: '#f7f0e8', shadow: 'rgba(154, 111, 47, @@)', hueRotate: 60 },
+  { name: 'pink',   primary: '#9a2f5b', hoverBg: '#f7e8ef', shadow: 'rgba(154, 47, 91, @@)', hueRotate: 310 },
+];
+let nextThemeIndex = 0;
+
+// ショートカットFIFO: Permission到着順でセッションを管理
+const permissionFIFO = [];
+
+/**
+ * event.senderからsession_idを逆引きする
+ */
+function getSessionIdFromSender(sender) {
+  for (const [sessionId, win] of windows) {
+    if (!win.isDestroyed() && win.webContents === sender) {
+      return sessionId;
+    }
+  }
+  return null;
+}
+
+/**
+ * セッション用ウィンドウを生成する
+ */
+function createSessionWindow(sessionId, { pid, cwd }) {
+  if (windows.has(sessionId)) return windows.get(sessionId);
+
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
-
   const winWidth = 400;
-  const winHeight = 500;
+  const winHeight = 550; // プロジェクト名表示分を追加
 
-  mainWindow = new BrowserWindow({
+  // ウィンドウ位置: 既存ウィンドウ数に応じてオフセット
+  const offset = windows.size * 60;
+  const x = screenWidth - winWidth - offset;
+  const y = screenHeight - winHeight;
+
+  const win = new BrowserWindow({
     width: winWidth,
     height: winHeight,
-    x: screenWidth - winWidth,
-    y: screenHeight - winHeight,
+    x,
+    y,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
@@ -29,19 +65,121 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
   // 吹き出し非表示時はクリックスルー
-  mainWindow.setIgnoreMouseEvents(true, { forward: true });
+  win.setIgnoreMouseEvents(true, { forward: true });
 
-  // レンダラーからのマウスイベント制御
-  ipcMain.on('set-ignore-mouse', (_event, ignore) => {
-    mainWindow.setIgnoreMouseEvents(ignore, { forward: true });
+  // デバッグ用: Cmd+Shift+I でDevTools
+  win.webContents.on('before-input-event', (_event, input) => {
+    if (input.meta && input.shift && input.key === 'i') {
+      win.webContents.openDevTools({ mode: 'detach' });
+    }
+  });
+
+  // ページロード完了後にセッション情報を送信
+  const theme = COLOR_THEMES[nextThemeIndex % COLOR_THEMES.length];
+  nextThemeIndex++;
+
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.send('session-info', { sessionId, pid, cwd, colorTheme: theme });
+  });
+
+  win.on('closed', () => {
+    windows.delete(sessionId);
+    // FIFOからも除去
+    const fifoIdx = permissionFIFO.indexOf(sessionId);
+    if (fifoIdx !== -1) permissionFIFO.splice(fifoIdx, 1);
+    updateActiveSession();
+  });
+
+  windows.set(sessionId, win);
+  return win;
+}
+
+/**
+ * セッションを削除する
+ */
+function removeSession(sessionId) {
+  const win = windows.get(sessionId);
+  if (win && !win.isDestroyed()) {
+    win.close();
+  }
+  windows.delete(sessionId);
+  const fifoIdx = permissionFIFO.indexOf(sessionId);
+  if (fifoIdx !== -1) permissionFIFO.splice(fifoIdx, 1);
+  if (socketServer) socketServer.removeSession(sessionId);
+  updateActiveSession();
+}
+
+/**
+ * FIFO先頭のPermissionセッションを最前面にする
+ * Permission待ちがなければ全ウィンドウ同レベル
+ */
+function updateActiveSession() {
+  const activeSessionId = permissionFIFO.length > 0 ? permissionFIFO[0] : null;
+  let activeWin = null;
+  for (const [sessionId, win] of windows) {
+    if (!win.isDestroyed()) {
+      if (activeSessionId && sessionId === activeSessionId) {
+        win.setAlwaysOnTop(true, 'screen-saver');
+        activeWin = win;
+      } else {
+        win.setAlwaysOnTop(true, 'floating');
+      }
+    }
+  }
+  // FIFO先頭ウィンドウを確実に最前面に持ってくる
+  if (activeWin) {
+    activeWin.moveTop();
+  }
+}
+
+/**
+ * ショートカットイベントをFIFO先頭のセッションウィンドウに送信
+ */
+function sendShortcutToActiveSession(channel) {
+  if (permissionFIFO.length === 0) return;
+  const activeSessionId = permissionFIFO[0];
+  const win = windows.get(activeSessionId);
+  if (win && !win.isDestroyed()) {
+    win.webContents.send(channel);
+  }
+}
+
+function registerPermissionShortcuts() {
+  globalShortcut.register('Ctrl+Shift+Y', () => sendShortcutToActiveSession('shortcut-allow'));
+  globalShortcut.register('Ctrl+Shift+N', () => sendShortcutToActiveSession('shortcut-deny'));
+  globalShortcut.register('Ctrl+Shift+A', () => sendShortcutToActiveSession('shortcut-always-allow'));
+}
+
+function unregisterPermissionShortcuts() {
+  globalShortcut.unregister('Ctrl+Shift+Y');
+  globalShortcut.unregister('Ctrl+Shift+N');
+  globalShortcut.unregister('Ctrl+Shift+A');
+}
+
+function setupIPC() {
+  // レンダラーからのマウスイベント制御（sender経由でウィンドウ特定）
+  ipcMain.on('set-ignore-mouse', (event, ignore) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win && !win.isDestroyed()) {
+      win.setIgnoreMouseEvents(ignore, { forward: true });
+    }
   });
 
   // ウィンドウ位置の取得・設定（ドラッグ移動用）
-  ipcMain.handle('get-window-position', () => mainWindow.getPosition());
-  ipcMain.on('set-window-position', (_event, x, y) => mainWindow.setPosition(x, y));
+  ipcMain.handle('get-window-position', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    return win ? win.getPosition() : [0, 0];
+  });
+
+  ipcMain.on('set-window-position', (event, x, y) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win && !win.isDestroyed()) {
+      win.setPosition(x, y);
+    }
+  });
 
   // Permission Requestレスポンス
   ipcMain.on('permission-response', (_event, response) => {
@@ -52,7 +190,10 @@ function createWindow() {
   });
 
   // 右クリックコンテキストメニュー
-  ipcMain.on('show-context-menu', () => {
+  ipcMain.on('show-context-menu', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const sessionId = getSessionIdFromSender(event.sender);
+
     const template = [
       {
         label: '再起動',
@@ -62,71 +203,81 @@ function createWindow() {
         },
       },
       { type: 'separator' },
-      {
-        label: '終了',
-        click: () => {
-          app.quit();
-        },
-      },
     ];
-    const menu = Menu.buildFromTemplate(template);
-    menu.popup({ window: mainWindow });
-  });
 
-  // デバッグ用: Cmd+Shift+I でDevTools
-  mainWindow.webContents.on('before-input-event', (_event, input) => {
-    if (input.meta && input.shift && input.key === 'i') {
-      mainWindow.webContents.openDevTools({ mode: 'detach' });
+    // セッション別の「このずんだもんを終了」
+    if (sessionId && sessionId !== 'default') {
+      template.push({
+        label: 'このずんだもんを終了',
+        click: () => removeSession(sessionId),
+      });
+      template.push({ type: 'separator' });
     }
-  });
 
-  // UDSサーバー起動（コールバック方式）
+    template.push({
+      label: '終了',
+      click: () => app.quit(),
+    });
+
+    const menu = Menu.buildFromTemplate(template);
+    menu.popup({ window: win });
+  });
+}
+
+function startSocketServer() {
   socketServer = new SocketServer({
-    onMessage: (_sessionId, channel, data) => {
-      // 全メッセージをmainWindowにルーティング（シングルウィンドウ）
-      mainWindow.webContents.send(channel, data);
+    onMessage: (sessionId, channel, data) => {
+      const win = windows.get(sessionId);
+      if (win && !win.isDestroyed()) {
+        win.webContents.send(channel, data);
+      }
+      // メッセージ送信後にPermission先頭を最前面に再適用
+      if (permissionFIFO.length > 0) {
+        updateActiveSession();
+      }
     },
     onSessionStart: (sessionId, info) => {
       console.log(`Session started: ${sessionId}`, info);
+      createSessionWindow(sessionId, info);
     },
     onSessionEnd: (sessionId) => {
       console.log(`Session ended: ${sessionId}`);
+      removeSession(sessionId);
     },
-    onPermissionRequest: () => {
+    onPermissionRequest: (sessionId) => {
+      // FIFOに追加（まだ含まれていなければ）
+      if (!permissionFIFO.includes(sessionId)) {
+        permissionFIFO.push(sessionId);
+      }
+      updateActiveSession();
       if (!globalShortcut.isRegistered('Ctrl+Shift+Y')) {
         registerPermissionShortcuts();
       }
     },
-    onAllPermissionsDismiss: () => unregisterPermissionShortcuts(),
+    onSessionPermissionsDismiss: (sessionId) => {
+      // 特定セッションのPermissionが全て解消 → FIFOから除去
+      const idx = permissionFIFO.indexOf(sessionId);
+      if (idx !== -1) {
+        permissionFIFO.splice(idx, 1);
+        updateActiveSession();
+      }
+    },
+    onAllPermissionsDismiss: () => {
+      permissionFIFO.length = 0;
+      updateActiveSession();
+      unregisterPermissionShortcuts();
+    },
   });
   socketServer.start();
 }
 
-function registerPermissionShortcuts() {
-  globalShortcut.register('Ctrl+Shift+Y', () => {
-    mainWindow.webContents.send('shortcut-allow');
-  });
-  globalShortcut.register('Ctrl+Shift+N', () => {
-    mainWindow.webContents.send('shortcut-deny');
-  });
-  globalShortcut.register('Ctrl+Shift+A', () => {
-    mainWindow.webContents.send('shortcut-always-allow');
-  });
-}
-
-function unregisterPermissionShortcuts() {
-  globalShortcut.unregister('Ctrl+Shift+Y');
-  globalShortcut.unregister('Ctrl+Shift+N');
-  globalShortcut.unregister('Ctrl+Shift+A');
-}
-
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  setupIPC();
+  startSocketServer();
+});
 
 app.on('window-all-closed', () => {
-  if (socketServer) {
-    socketServer.stop();
-  }
-  app.quit();
+  // 新セッションが来る可能性があるのでquitしない
 });
 
 app.on('before-quit', () => {
