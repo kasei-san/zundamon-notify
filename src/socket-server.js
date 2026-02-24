@@ -16,6 +16,7 @@ class SocketServer {
    * @param {function} callbacks.onSessionStart - (session_id, {pid, cwd}) 新セッション検知
    * @param {function} callbacks.onSessionEnd - (session_id) セッション終了
    * @param {function} callbacks.onPermissionRequest - (session_id) ショートカット登録用
+   * @param {function} callbacks.onSessionPermissionsDismiss - (session_id) 特定セッションのpendingが解消
    * @param {function} callbacks.onAllPermissionsDismiss - () 全セッションのpendingが解消
    */
   constructor(callbacks) {
@@ -46,7 +47,15 @@ class SocketServer {
   /**
    * 全セッションにpending接続が残っていないかチェック
    */
-  checkAllPermissionsDismissed() {
+  checkAllPermissionsDismissed(changedSessionId) {
+    // 特定セッションのpendingが0になったら通知
+    if (changedSessionId) {
+      const session = this.sessions.get(changedSessionId);
+      if (session && session.pendingConnections.size === 0 && this.callbacks.onSessionPermissionsDismiss) {
+        this.callbacks.onSessionPermissionsDismiss(changedSessionId);
+      }
+    }
+    // 全セッションのpendingが解消されたかチェック
     for (const [, session] of this.sessions) {
       if (session.pendingConnections.size > 0) return;
     }
@@ -184,7 +193,7 @@ class SocketServer {
         if (this.callbacks.onMessage) {
           this.callbacks.onMessage(sessionId, 'dismiss-bubble', {});
         }
-        this.checkAllPermissionsDismissed();
+        this.checkAllPermissionsDismissed(sessionId);
         socket.end();
         break;
       }
@@ -203,7 +212,7 @@ class SocketServer {
         if (this.callbacks.onSessionEnd) {
           this.callbacks.onSessionEnd(sessionId);
         }
-        this.checkAllPermissionsDismissed();
+        this.checkAllPermissionsDismissed(sessionId);
         socket.end();
         break;
       }
@@ -228,7 +237,7 @@ class SocketServer {
         socket.end();
         session.pendingConnections.delete(response.id);
         console.log(`[${sessionId}] Remaining pending:`, [...session.pendingConnections.keys()]);
-        this.checkAllPermissionsDismissed();
+        this.checkAllPermissionsDismissed(sessionId);
         return;
       }
     }

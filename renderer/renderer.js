@@ -6,6 +6,8 @@ const btnDeny = document.getElementById('btn-deny');
 const btnClose = document.getElementById('btn-close');
 const btnAlwaysAllow = document.getElementById('btn-always-allow');
 const character = document.getElementById('character');
+const projectName = document.getElementById('project-name');
+const appEl = document.getElementById('app');
 
 // Permission リクエストのキュー（複数同時対応）
 let permissionQueue = [];
@@ -28,8 +30,9 @@ function setupMouseForwarding() {
   document.addEventListener('mousemove', (e) => {
     const isOverCharacter = isPointInElement(e, character);
     const isOverBubble = bubbleVisible && isPointInElement(e, bubble);
+    const isOverProjectName = projectName.textContent && isPointInElement(e, projectName);
 
-    if (isOverCharacter || isOverBubble) {
+    if (isOverCharacter || isOverBubble || isOverProjectName) {
       window.electronAPI.setIgnoreMouse(false);
     } else if (!bubbleVisible) {
       window.electronAPI.setIgnoreMouse(true);
@@ -119,17 +122,38 @@ function getCurrentRequest() {
   return permissionQueue.length > 0 ? permissionQueue[0] : null;
 }
 
+// セッション情報の受信
+window.electronAPI.onSessionInfo((info) => {
+  console.log('Session info received:', info);
+
+  // cwdからディレクトリ名を抽出してプロジェクト名として表示
+  if (info.cwd) {
+    const dirName = info.cwd.split('/').filter(Boolean).pop() || '';
+    projectName.textContent = dirName;
+  }
+
+  // 色テーマ適用
+  if (info.colorTheme) {
+    const theme = info.colorTheme;
+    appEl.style.setProperty('--theme-primary', theme.primary);
+    appEl.style.setProperty('--theme-hover-bg', theme.hoverBg);
+    appEl.style.setProperty('--theme-shadow', theme.shadow.replace('@@', '0.4'));
+    appEl.style.setProperty('--theme-shadow-light', theme.shadow.replace('@@', '0.2'));
+
+    // ずんだもんの色相を変更
+    if (theme.hueRotate) {
+      const img = character.querySelector('img');
+      if (img) {
+        img.style.filter = `hue-rotate(${theme.hueRotate}deg)`;
+      }
+    }
+  }
+});
+
 // Permission Request
 window.electronAPI.onPermissionRequest((data) => {
   permissionQueue.push(data);
-
-  // 1件目ならすぐ表示、2件目以降はキューに積むだけ
-  if (permissionQueue.length === 1) {
-    displayCurrentPermission();
-  } else {
-    // 待ち件数を更新するため再表示
-    displayCurrentPermission();
-  }
+  displayCurrentPermission();
 });
 
 // Notification
