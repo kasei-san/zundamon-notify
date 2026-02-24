@@ -143,12 +143,14 @@ window.electronAPI.onSessionInfo((info) => {
 
 // Permission Request
 window.electronAPI.onPermissionRequest((data) => {
+  console.log('[DEBUG] onPermissionRequest:', JSON.stringify({ id: data.id, tool_name: data.tool_name, queueBefore: permissionQueue.length }));
   permissionQueue.push(data);
   displayCurrentPermission();
 });
 
 // Notification
 window.electronAPI.onNotification((data) => {
+  console.log('[DEBUG] onNotification:', JSON.stringify({ message: data.message, queueLength: permissionQueue.length, bubbleVisible }));
   // Permissionキューがある場合はNotificationを表示しない（キューを維持）
   if (permissionQueue.length > 0) return;
   showBubble(data.message || '通知なのだ！');
@@ -156,6 +158,7 @@ window.electronAPI.onNotification((data) => {
 
 // Stop (入力待ち)
 window.electronAPI.onStop((data) => {
+  console.log('[DEBUG] onStop:', JSON.stringify({ message: data.message, queueLength: permissionQueue.length, bubbleVisible }));
   // Permissionキューがある場合はStopを表示しない（キューを維持）
   if (permissionQueue.length > 0) return;
   showBubble(data.message || '入力を待っているのだ！');
@@ -213,7 +216,9 @@ btnClose.addEventListener('click', () => {
 // コンソール側で許可/拒否された場合、該当IDをキューから除去
 window.electronAPI.onPermissionDismissed((data) => {
   const wasFirst = permissionQueue.length > 0 && permissionQueue[0].id === data.id;
+  const queueBefore = permissionQueue.map((item) => item.id);
   permissionQueue = permissionQueue.filter((item) => item.id !== data.id);
+  console.log('[DEBUG] onPermissionDismissed:', JSON.stringify({ dismissedId: data.id, wasFirst, queueBefore, queueAfter: permissionQueue.map((item) => item.id) }));
 
   if (wasFirst) {
     // 先頭が除去された場合、次を表示
@@ -226,6 +231,7 @@ window.electronAPI.onPermissionDismissed((data) => {
 
 // dismiss メッセージで吹き出しを閉じる（キュー全クリア）
 window.electronAPI.onDismissBubble(() => {
+  console.log('[DEBUG] onDismissBubble:', JSON.stringify({ queueBefore: permissionQueue.map((item) => item.id), bubbleVisible }));
   permissionQueue = [];
   if (bubbleVisible) {
     hideBubble();
