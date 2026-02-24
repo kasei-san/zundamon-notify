@@ -7,8 +7,8 @@ const btnClose = document.getElementById('btn-close');
 const btnAlwaysAllow = document.getElementById('btn-always-allow');
 const character = document.getElementById('character');
 
-let currentRequestId = null;
-let currentPermissionSuggestions = null;
+// Permission リクエストのキュー（複数同時対応）
+let permissionQueue = [];
 let bubbleVisible = false;
 
 // マウスがUI要素に乗ったらクリックスルーを解除、離れたら復活
@@ -68,17 +68,23 @@ function showBubble(text, showButtons = false) {
 function hideBubble() {
   bubble.classList.add('hidden');
   bubbleVisible = false;
-  currentRequestId = null;
-  currentPermissionSuggestions = null;
   btnAlwaysAllow.classList.add('hidden');
 
   // クリックスルーを復活
   window.electronAPI.setIgnoreMouse(true);
 }
 
-// Permission Request
-window.electronAPI.onPermissionRequest((data) => {
-  currentRequestId = data.id;
+/**
+ * キュー先頭のPermissionを表示する
+ * キューが空ならhideBubble
+ */
+function displayCurrentPermission() {
+  if (permissionQueue.length === 0) {
+    hideBubble();
+    return;
+  }
+
+  const data = permissionQueue[0];
   const toolName = data.tool_name || 'Unknown';
   let description = data.description || '';
 
@@ -91,61 +97,96 @@ window.electronAPI.onPermissionRequest((data) => {
     description = description.substring(0, 120) + '...';
   }
 
+  // 待ち件数の表示
+  const waitCount = permissionQueue.length - 1;
+  const waitText = waitCount > 0 ? `\n(${waitCount}件待ち)` : '';
+
   // permission_suggestionsがあれば「次回から聞かない」ボタンを表示
-  currentPermissionSuggestions = data.permission_suggestions || null;
-  if (currentPermissionSuggestions && currentPermissionSuggestions.length > 0) {
+  const suggestions = data.permission_suggestions || null;
+  if (suggestions && suggestions.length > 0) {
     btnAlwaysAllow.classList.remove('hidden');
   } else {
     btnAlwaysAllow.classList.add('hidden');
   }
 
-  showBubble(`🔧 ${toolName}\n${description}`, true);
+  showBubble(`🔧 ${toolName}\n${description}${waitText}`, true);
+}
+
+/**
+ * キュー先頭のリクエスト情報を取得する
+ */
+function getCurrentRequest() {
+  return permissionQueue.length > 0 ? permissionQueue[0] : null;
+}
+
+// Permission Request
+window.electronAPI.onPermissionRequest((data) => {
+  permissionQueue.push(data);
+
+  // 1件目ならすぐ表示、2件目以降はキューに積むだけ
+  if (permissionQueue.length === 1) {
+    displayCurrentPermission();
+  } else {
+    // 待ち件数を更新するため再表示
+    displayCurrentPermission();
+  }
 });
 
 // Notification
 window.electronAPI.onNotification((data) => {
+  // Permissionキューがある場合はNotificationを表示しない（キューを維持）
+  if (permissionQueue.length > 0) return;
   showBubble(data.message || '通知なのだ！');
 });
 
 // Stop (入力待ち)
 window.electronAPI.onStop((data) => {
+  // Permissionキューがある場合はStopを表示しない（キューを維持）
+  if (permissionQueue.length > 0) return;
   showBubble(data.message || '入力を待っているのだ！');
 });
 
 // ボタンクリック
 btnAllow.addEventListener('click', () => {
-  if (currentRequestId) {
+  const current = getCurrentRequest();
+  if (current) {
     window.electronAPI.sendPermissionResponse({
-      id: currentRequestId,
+      id: current.id,
       decision: 'allow',
     });
-    hideBubble();
+    permissionQueue.shift();
+    displayCurrentPermission();
   }
 });
 
 // 「次回から聞かない」ボタン（許可 + updatedPermissions）
 btnAlwaysAllow.addEventListener('click', () => {
-  if (currentRequestId) {
+  const current = getCurrentRequest();
+  if (current) {
     const response = {
-      id: currentRequestId,
+      id: current.id,
       decision: 'allow',
     };
-    if (currentPermissionSuggestions) {
-      response.updatedPermissions = currentPermissionSuggestions;
+    const suggestions = current.permission_suggestions || null;
+    if (suggestions) {
+      response.updatedPermissions = suggestions;
     }
     window.electronAPI.sendPermissionResponse(response);
-    hideBubble();
+    permissionQueue.shift();
+    displayCurrentPermission();
   }
 });
 
 btnDeny.addEventListener('click', () => {
-  if (currentRequestId) {
+  const current = getCurrentRequest();
+  if (current) {
     window.electronAPI.sendPermissionResponse({
-      id: currentRequestId,
+      id: current.id,
       decision: 'deny',
       message: 'ユーザーが拒否したのだ',
     });
-    hideBubble();
+    permissionQueue.shift();
+    displayCurrentPermission();
   }
 });
 
@@ -154,15 +195,23 @@ btnClose.addEventListener('click', () => {
   hideBubble();
 });
 
-// コンソール側で許可/拒否された場合、吹き出しを閉じる
+// コンソール側で許可/拒否された場合、該当IDをキューから除去
 window.electronAPI.onPermissionDismissed((data) => {
-  if (currentRequestId === data.id) {
-    hideBubble();
+  const wasFirst = permissionQueue.length > 0 && permissionQueue[0].id === data.id;
+  permissionQueue = permissionQueue.filter((item) => item.id !== data.id);
+
+  if (wasFirst) {
+    // 先頭が除去された場合、次を表示
+    displayCurrentPermission();
+  } else if (permissionQueue.length > 0) {
+    // 待ち件数が変わったので再表示
+    displayCurrentPermission();
   }
 });
 
-// dismiss メッセージで吹き出しを閉じる
+// dismiss メッセージで吹き出しを閉じる（キュー全クリア）
 window.electronAPI.onDismissBubble(() => {
+  permissionQueue = [];
   if (bubbleVisible) {
     hideBubble();
   }
@@ -170,37 +219,44 @@ window.electronAPI.onDismissBubble(() => {
 
 // グローバルショートカットで許可/拒否
 window.electronAPI.onShortcutAllow(() => {
-  if (currentRequestId) {
+  const current = getCurrentRequest();
+  if (current) {
     window.electronAPI.sendPermissionResponse({
-      id: currentRequestId,
+      id: current.id,
       decision: 'allow',
     });
-    hideBubble();
+    permissionQueue.shift();
+    displayCurrentPermission();
   }
 });
 
 window.electronAPI.onShortcutDeny(() => {
-  if (currentRequestId) {
+  const current = getCurrentRequest();
+  if (current) {
     window.electronAPI.sendPermissionResponse({
-      id: currentRequestId,
+      id: current.id,
       decision: 'deny',
       message: 'ユーザーが拒否したのだ',
     });
-    hideBubble();
+    permissionQueue.shift();
+    displayCurrentPermission();
   }
 });
 
 window.electronAPI.onShortcutAlwaysAllow(() => {
-  if (currentRequestId) {
+  const current = getCurrentRequest();
+  if (current) {
     const response = {
-      id: currentRequestId,
+      id: current.id,
       decision: 'allow',
     };
-    if (currentPermissionSuggestions) {
-      response.updatedPermissions = currentPermissionSuggestions;
+    const suggestions = current.permission_suggestions || null;
+    if (suggestions) {
+      response.updatedPermissions = suggestions;
     }
     window.electronAPI.sendPermissionResponse(response);
-    hideBubble();
+    permissionQueue.shift();
+    displayCurrentPermission();
   }
 });
 

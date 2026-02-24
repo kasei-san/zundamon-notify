@@ -101,11 +101,6 @@ class SocketServer {
   handleMessage(msg, socket) {
     console.log('Received message:', JSON.stringify(msg));
 
-    // 新しいメッセージが来たら、古いpending permissionを全てdismiss
-    if (this.pendingConnections.size > 0) {
-      this.dismissPendingConnections();
-    }
-
     switch (msg.type) {
       case MESSAGE_TYPES.PERMISSION_REQUEST:
         // 接続を保持してレスポンスを待つ
@@ -151,6 +146,10 @@ class SocketServer {
       socket.write(serializeResponse(response));
       socket.end();
       this.pendingConnections.delete(response.id);
+      // 全てのpendingが解消されたらショートカット解除
+      if (this.pendingConnections.size === 0 && this.onPermissionDismiss) {
+        this.onPermissionDismiss();
+      }
     }
   }
 
