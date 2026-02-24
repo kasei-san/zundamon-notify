@@ -1,6 +1,6 @@
 #!/bin/bash
-# PostToolUse Hook - 非ブロッキング
-# ツール実行完了時に、残っているpermission吹き出しをdismissする
+# SessionEnd Hook - セッション終了通知
+# Claude Codeセッション終了時にずんだもんウィンドウを閉じる
 
 SOCKET_PATH="/tmp/zundamon-claude.sock"
 
@@ -13,22 +13,22 @@ fi
 INPUT=$(cat)
 
 REQUEST=$(echo "$INPUT" | python3 -c "
-import sys, json
+import sys, json, uuid
 
 data = json.load(sys.stdin)
 req = {
-    'type': 'dismiss',
-    'id': 'dismiss',
+    'type': 'session_end',
+    'id': str(uuid.uuid4()),
     'session_id': data.get('session_id', 'default')
 }
 print(json.dumps(req))
 " 2>/dev/null)
 
-# REQUESTが空ならフォールバック（旧形式）
+# REQUESTが空ならフォールバック
 if [ -z "$REQUEST" ]; then
-  REQUEST='{"type":"dismiss","id":"dismiss"}'
+  exit 0
 fi
 
-echo "$REQUEST" | socat -t 1 - UNIX-CONNECT:"$SOCKET_PATH" 2>/dev/null
+echo "$REQUEST" | socat -t 2 - UNIX-CONNECT:"$SOCKET_PATH" 2>/dev/null
 
 exit 0

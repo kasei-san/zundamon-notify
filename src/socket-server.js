@@ -1,6 +1,6 @@
 /**
  * Unix Domain Socket サーバー
- * Hook Script からのメッセージを受信し、Electron UIと連携する
+ * Hook Script からのメッセージを受信し、セッション単位で管理する
  */
 
 const net = require('net');
@@ -10,14 +10,57 @@ const { MESSAGE_TYPES, parseMessage, serializeResponse } = require('./protocol')
 const SOCKET_PATH = '/tmp/zundamon-claude.sock';
 
 class SocketServer {
-  constructor(mainWindow) {
-    this.mainWindow = mainWindow;
+  /**
+   * @param {object} callbacks
+   * @param {function} callbacks.onMessage - (session_id, channel, data) メッセージをウィンドウにルーティング
+   * @param {function} callbacks.onSessionStart - (session_id, {pid, cwd}) 新セッション検知
+   * @param {function} callbacks.onSessionEnd - (session_id) セッション終了
+   * @param {function} callbacks.onPermissionRequest - (session_id) ショートカット登録用
+   * @param {function} callbacks.onAllPermissionsDismiss - () 全セッションのpendingが解消
+   */
+  constructor(callbacks) {
+    this.callbacks = callbacks;
     this.server = null;
-    // permission_request の接続を保持 (id -> socket)
-    this.pendingConnections = new Map();
-    // コールバック（main.js から設定）
-    this.onPermissionRequest = null;
-    this.onPermissionDismiss = null;
+    // セッション単位の管理: session_id -> { pid, cwd, pendingConnections: Map<id, socket> }
+    this.sessions = new Map();
+  }
+
+  /**
+   * セッションを取得。未登録なら自動作成してonSessionStartを呼ぶ
+   */
+  getOrCreateSession(sessionId, msg) {
+    if (!this.sessions.has(sessionId)) {
+      const sessionInfo = {
+        pid: msg.pid || null,
+        cwd: msg.cwd || '',
+        pendingConnections: new Map(),
+      };
+      this.sessions.set(sessionId, sessionInfo);
+      if (this.callbacks.onSessionStart) {
+        this.callbacks.onSessionStart(sessionId, { pid: sessionInfo.pid, cwd: sessionInfo.cwd });
+      }
+    }
+    return this.sessions.get(sessionId);
+  }
+
+  /**
+   * 全セッションにpending接続が残っていないかチェック
+   */
+  checkAllPermissionsDismissed() {
+    for (const [, session] of this.sessions) {
+      if (session.pendingConnections.size > 0) return;
+    }
+    if (this.callbacks.onAllPermissionsDismiss) {
+      this.callbacks.onAllPermissionsDismiss();
+    }
+  }
+
+  /**
+   * 特定セッションのpending接続数を返す
+   */
+  getSessionPendingCount(sessionId) {
+    const session = this.sessions.get(sessionId);
+    return session ? session.pendingConnections.size : 0;
   }
 
   start() {
@@ -61,17 +104,21 @@ class SocketServer {
       });
 
       socket.on('close', () => {
-        // 切断されたpending接続を削除し、レンダラーに通知
+        // 切断されたpending接続を削除し、該当ウィンドウに通知
         let dismissed = false;
-        for (const [id, s] of this.pendingConnections) {
-          if (s === socket) {
-            this.pendingConnections.delete(id);
-            this.mainWindow.webContents.send('permission-dismissed', { id });
-            dismissed = true;
+        for (const [sessionId, session] of this.sessions) {
+          for (const [id, s] of session.pendingConnections) {
+            if (s === socket) {
+              session.pendingConnections.delete(id);
+              if (this.callbacks.onMessage) {
+                this.callbacks.onMessage(sessionId, 'permission-dismissed', { id });
+              }
+              dismissed = true;
+            }
           }
         }
-        if (dismissed && this.pendingConnections.size === 0 && this.onPermissionDismiss) {
-          this.onPermissionDismiss();
+        if (dismissed) {
+          this.checkAllPermissionsDismissed();
         }
       });
     });
@@ -85,48 +132,81 @@ class SocketServer {
     });
   }
 
-  /**
-   * 未応答のpending接続を全てdismissする
-   * コンソール側で許可/拒否された後、次のメッセージが来た時に古い吹き出しを消す
-   */
-  dismissPendingConnections() {
-    for (const [id, s] of this.pendingConnections) {
-      this.mainWindow.webContents.send('permission-dismissed', { id });
-      s.end();
-    }
-    this.pendingConnections.clear();
-    if (this.onPermissionDismiss) this.onPermissionDismiss();
-  }
-
   handleMessage(msg, socket) {
     console.log('Received message:', JSON.stringify(msg));
+    const sessionId = msg.session_id;
 
     switch (msg.type) {
-      case MESSAGE_TYPES.PERMISSION_REQUEST:
-        // 接続を保持してレスポンスを待つ
-        this.pendingConnections.set(msg.id, socket);
-        console.log('Pending connections:', [...this.pendingConnections.keys()]);
-        this.mainWindow.webContents.send('permission-request', msg);
-        if (this.onPermissionRequest) this.onPermissionRequest(msg);
+      case MESSAGE_TYPES.PERMISSION_REQUEST: {
+        const session = this.getOrCreateSession(sessionId, msg);
+        session.pendingConnections.set(msg.id, socket);
+        console.log(`[${sessionId}] Pending connections:`, [...session.pendingConnections.keys()]);
+        if (this.callbacks.onMessage) {
+          this.callbacks.onMessage(sessionId, 'permission-request', msg);
+        }
+        if (this.callbacks.onPermissionRequest) {
+          this.callbacks.onPermissionRequest(sessionId);
+        }
         break;
+      }
 
-      case MESSAGE_TYPES.NOTIFICATION:
-        this.mainWindow.webContents.send('notification', msg);
+      case MESSAGE_TYPES.NOTIFICATION: {
+        this.getOrCreateSession(sessionId, msg);
+        if (this.callbacks.onMessage) {
+          this.callbacks.onMessage(sessionId, 'notification', msg);
+        }
         socket.end();
         break;
+      }
 
-      case MESSAGE_TYPES.STOP:
-        this.mainWindow.webContents.send('stop', msg);
+      case MESSAGE_TYPES.STOP: {
+        this.getOrCreateSession(sessionId, msg);
+        if (this.callbacks.onMessage) {
+          this.callbacks.onMessage(sessionId, 'stop', msg);
+        }
         socket.end();
         break;
+      }
 
-      case MESSAGE_TYPES.DISMISS:
-        // pending permissionの吹き出しを全て閉じる
-        this.dismissPendingConnections();
+      case MESSAGE_TYPES.DISMISS: {
+        // 対象セッションのpendingのみクリア
+        const session = this.sessions.get(sessionId);
+        if (session) {
+          for (const [id, s] of session.pendingConnections) {
+            if (this.callbacks.onMessage) {
+              this.callbacks.onMessage(sessionId, 'permission-dismissed', { id });
+            }
+            s.end();
+          }
+          session.pendingConnections.clear();
+        }
         // Notification/Stopの吹き出しも閉じる
-        this.mainWindow.webContents.send('dismiss-bubble');
+        if (this.callbacks.onMessage) {
+          this.callbacks.onMessage(sessionId, 'dismiss-bubble', {});
+        }
+        this.checkAllPermissionsDismissed();
         socket.end();
         break;
+      }
+
+      case MESSAGE_TYPES.SESSION_END: {
+        // セッション削除
+        const endSession = this.sessions.get(sessionId);
+        if (endSession) {
+          // pending接続をクローズ
+          for (const [, s] of endSession.pendingConnections) {
+            s.end();
+          }
+          endSession.pendingConnections.clear();
+          this.sessions.delete(sessionId);
+        }
+        if (this.callbacks.onSessionEnd) {
+          this.callbacks.onSessionEnd(sessionId);
+        }
+        this.checkAllPermissionsDismissed();
+        socket.end();
+        break;
+      }
 
       default:
         console.warn('Unknown message type:', msg.type);
@@ -140,25 +220,58 @@ class SocketServer {
    */
   sendResponse(response) {
     console.log('sendResponse called:', JSON.stringify(response));
-    console.log('Pending IDs:', [...this.pendingConnections.keys()]);
-    const socket = this.pendingConnections.get(response.id);
-    if (socket) {
-      socket.write(serializeResponse(response));
-      socket.end();
-      this.pendingConnections.delete(response.id);
-      // 全てのpendingが解消されたらショートカット解除
-      if (this.pendingConnections.size === 0 && this.onPermissionDismiss) {
-        this.onPermissionDismiss();
+    // response内のidから該当セッションのpendingを検索
+    for (const [sessionId, session] of this.sessions) {
+      const socket = session.pendingConnections.get(response.id);
+      if (socket) {
+        socket.write(serializeResponse(response));
+        socket.end();
+        session.pendingConnections.delete(response.id);
+        console.log(`[${sessionId}] Remaining pending:`, [...session.pendingConnections.keys()]);
+        this.checkAllPermissionsDismissed();
+        return;
       }
+    }
+    console.warn('No pending connection found for response id:', response.id);
+  }
+
+  /**
+   * 特定セッションを削除する
+   */
+  removeSession(sessionId) {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      for (const [, s] of session.pendingConnections) {
+        s.end();
+      }
+      session.pendingConnections.clear();
+      this.sessions.delete(sessionId);
     }
   }
 
+  /**
+   * セッション情報を取得
+   */
+  getSession(sessionId) {
+    return this.sessions.get(sessionId);
+  }
+
+  /**
+   * 全セッションIDを取得
+   */
+  getAllSessionIds() {
+    return [...this.sessions.keys()];
+  }
+
   stop() {
-    // 保持中の接続を全て閉じる
-    for (const [, socket] of this.pendingConnections) {
-      socket.end();
+    // 保持中の全セッション接続を閉じる
+    for (const [, session] of this.sessions) {
+      for (const [, socket] of session.pendingConnections) {
+        socket.end();
+      }
+      session.pendingConnections.clear();
     }
-    this.pendingConnections.clear();
+    this.sessions.clear();
 
     if (this.server) {
       this.server.close();

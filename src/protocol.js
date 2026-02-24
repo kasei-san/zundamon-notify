@@ -8,6 +8,7 @@ const MESSAGE_TYPES = {
   NOTIFICATION: 'notification',
   STOP: 'stop',
   DISMISS: 'dismiss',
+  SESSION_END: 'session_end',
 };
 
 /**
@@ -22,6 +23,10 @@ function parseMessage(line) {
   try {
     const msg = JSON.parse(trimmed);
     if (!msg.type || !msg.id) return null;
+    // session_id未設定時は"default"にフォールバック
+    if (!msg.session_id) {
+      msg.session_id = 'default';
+    }
     return msg;
   } catch {
     return null;
