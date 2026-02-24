@@ -22,7 +22,8 @@ req = {
     'session_id': data.get('session_id', 'default'),
     'cwd': data.get('cwd', ''),
     'pid': os.getppid(),
-    'message': '入力を待っているのだ！'
+    'message': '入力を待っているのだ！',
+    'transcript_path': data.get('transcript_path', '')
 }
 print(json.dumps(req))
 " 2>/dev/null)
