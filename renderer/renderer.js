@@ -131,11 +131,11 @@ window.electronAPI.onSessionInfo((info) => {
     appEl.style.setProperty('--theme-shadow', theme.shadow.replace('@@', '0.4'));
     appEl.style.setProperty('--theme-shadow-light', theme.shadow.replace('@@', '0.2'));
 
-    // ずんだもんの色相を変更
-    if (theme.hueRotate) {
+    // ずんだもんの色違い画像を適用
+    if (theme.image) {
       const img = character.querySelector('img');
       if (img) {
-        img.style.filter = `hue-rotate(${theme.hueRotate}deg)`;
+        img.src = `../assets/${theme.image}`;
       }
     }
   }

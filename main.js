@@ -8,13 +8,18 @@ const windows = new Map();
 let socketServer;
 
 // 色テーマパレット（セッションごとに順番に割り当て）
-// hueRotate: ずんだもん画像のhue-rotate角度（緑基準）
+// image: 事前生成済みの色違いずんだもん画像ファイル名
 const COLOR_THEMES = [
-  { name: 'green',  primary: '#5b9a2f', hoverBg: '#f0f7e8', shadow: 'rgba(91, 154, 47, @@)', hueRotate: 0 },
-  { name: 'blue',   primary: '#2f7a9a', hoverBg: '#e8f2f7', shadow: 'rgba(47, 122, 154, @@)', hueRotate: 180 },
-  { name: 'purple', primary: '#7a2f9a', hoverBg: '#f3e8f7', shadow: 'rgba(122, 47, 154, @@)', hueRotate: 270 },
-  { name: 'orange', primary: '#9a6f2f', hoverBg: '#f7f0e8', shadow: 'rgba(154, 111, 47, @@)', hueRotate: 60 },
-  { name: 'pink',   primary: '#9a2f5b', hoverBg: '#f7e8ef', shadow: 'rgba(154, 47, 91, @@)', hueRotate: 310 },
+  { name: 'green',    primary: '#5b9a2f', hoverBg: '#f0f7e8', shadow: 'rgba(91, 154, 47, @@)',  image: 'zundamon.png' },
+  { name: 'blue',     primary: '#2f7a9a', hoverBg: '#e8f2f7', shadow: 'rgba(47, 122, 154, @@)', image: 'zundamon-blue.png' },
+  { name: 'purple',   primary: '#7a2f9a', hoverBg: '#f3e8f7', shadow: 'rgba(122, 47, 154, @@)', image: 'zundamon-purple.png' },
+  { name: 'orange',   primary: '#9a6f2f', hoverBg: '#f7f0e8', shadow: 'rgba(154, 111, 47, @@)', image: 'zundamon-orange.png' },
+  { name: 'pink',     primary: '#9a2f5b', hoverBg: '#f7e8ef', shadow: 'rgba(154, 47, 91, @@)',  image: 'zundamon-pink.png' },
+  { name: 'red',      primary: '#9a2f2f', hoverBg: '#f7e8e8', shadow: 'rgba(154, 47, 47, @@)',  image: 'zundamon-red.png' },
+  { name: 'cyan',     primary: '#2f9a8a', hoverBg: '#e8f7f4', shadow: 'rgba(47, 154, 138, @@)', image: 'zundamon-cyan.png' },
+  { name: 'yellow',   primary: '#9a8a2f', hoverBg: '#f7f5e8', shadow: 'rgba(154, 138, 47, @@)', image: 'zundamon-yellow.png' },
+  { name: 'lavender', primary: '#5b2f9a', hoverBg: '#ede8f7', shadow: 'rgba(91, 47, 154, @@)',  image: 'zundamon-lavender.png' },
+  { name: 'teal',     primary: '#2f9a6f', hoverBg: '#e8f7f0', shadow: 'rgba(47, 154, 111, @@)', image: 'zundamon-teal.png' },
 ];
 let nextThemeIndex = 0;
 
