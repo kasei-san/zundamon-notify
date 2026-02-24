@@ -9,22 +9,34 @@ if [ ! -S "$SOCKET_PATH" ]; then
   exit 0
 fi
 
-# stdinからhookデータを読み取り
+# stdinからhookデータを読み取り、Pythonで安全にパースしてUDSリクエストJSON生成
 INPUT=$(cat)
 
-ID=$(python3 -c "import uuid; print(uuid.uuid4())")
-MESSAGE=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('message','') or 'Claude Codeからの通知なのだ')" 2>/dev/null)
+REQUEST=$(echo "$INPUT" | python3 -c "
+import sys, json, uuid, os
+
+data = json.load(sys.stdin)
+message = data.get('message', '') or 'Claude Codeからの通知なのだ'
 
 # permission_prompt由来の通知はPermissionRequest hookで処理済みのためスキップ
-if echo "$MESSAGE" | grep -q "Claude needs your permission"; then
-  exit 0
-fi
+if 'Claude needs your permission' in message:
+    sys.exit(1)
 
-REQUEST=$(python3 -c "
-import json
-req = {'type': 'notification', 'id': '$ID', 'message': '''$MESSAGE'''}
+req = {
+    'type': 'notification',
+    'id': str(uuid.uuid4()),
+    'session_id': data.get('session_id', 'default'),
+    'cwd': data.get('cwd', ''),
+    'pid': os.getppid(),
+    'message': message
+}
 print(json.dumps(req))
 " 2>/dev/null)
+
+# REQUESTが空（パースエラーまたはスキップ）ならフォールバック
+if [ -z "$REQUEST" ]; then
+  exit 0
+fi
 
 echo "$REQUEST" | socat -t 2 - UNIX-CONNECT:"$SOCKET_PATH" 2>/dev/null
 
