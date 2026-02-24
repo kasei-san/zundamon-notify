@@ -200,15 +200,10 @@ function sendShortcutToActiveSession(channel) {
 }
 
 function registerPermissionShortcuts() {
+  globalShortcut.unregisterAll();
   globalShortcut.register('Ctrl+Shift+Y', () => sendShortcutToActiveSession('shortcut-allow'));
   globalShortcut.register('Ctrl+Shift+N', () => sendShortcutToActiveSession('shortcut-deny'));
   globalShortcut.register('Ctrl+Shift+A', () => sendShortcutToActiveSession('shortcut-always-allow'));
-}
-
-function unregisterPermissionShortcuts() {
-  globalShortcut.unregister('Ctrl+Shift+Y');
-  globalShortcut.unregister('Ctrl+Shift+N');
-  globalShortcut.unregister('Ctrl+Shift+A');
 }
 
 function setupIPC() {
@@ -302,9 +297,6 @@ function startSocketServer() {
         permissionFIFO.push(sessionId);
       }
       updateActiveSession();
-      if (!globalShortcut.isRegistered('Ctrl+Shift+Y')) {
-        registerPermissionShortcuts();
-      }
     },
     onSessionPermissionsDismiss: (sessionId) => {
       // 特定セッションのPermissionが全て解消 → FIFOから除去
@@ -317,7 +309,6 @@ function startSocketServer() {
     onAllPermissionsDismiss: () => {
       permissionFIFO.length = 0;
       updateActiveSession();
-      unregisterPermissionShortcuts();
     },
   });
   socketServer.start();
@@ -353,6 +344,8 @@ app.whenReady().then(() => {
   setupIPC();
   startSocketServer();
   startSessionGC();
+  // ショートカット登録を遅延実行（macOSアクセシビリティの準備完了を待つ必要がある）
+  setTimeout(() => registerPermissionShortcuts(), 3000);
 });
 
 app.on('window-all-closed', () => {
