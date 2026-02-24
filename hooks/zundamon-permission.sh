@@ -13,7 +13,7 @@ fi
 # stdinからhookデータを読み取り、Pythonで安全にパースしてUDSリクエストJSON生成
 # シェル変数展開を経由しないのでエスケープ問題が起きない
 REQUEST=$(python3 -c "
-import sys, json, uuid
+import sys, json, uuid, os
 
 data = json.load(sys.stdin)
 tool_input = data.get('tool_input', {})
@@ -22,6 +22,9 @@ description = tool_input.get('command', '') or tool_input.get('description', '')
 req = {
     'type': 'permission_request',
     'id': str(uuid.uuid4()),
+    'session_id': data.get('session_id', 'default'),
+    'cwd': data.get('cwd', ''),
+    'pid': os.getppid(),
     'tool_name': data.get('tool_name', ''),
     'tool_input': tool_input,
     'description': description
