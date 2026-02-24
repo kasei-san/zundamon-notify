@@ -13,6 +13,11 @@ html, body {
 }
 
 #app {
+  --theme-primary: #5b9a2f;
+  --theme-hover-bg: #f0f7e8;
+  --theme-shadow: rgba(91, 154, 47, 0.4);
+  --theme-shadow-light: rgba(91, 154, 47, 0.2);
+
   position: relative;
   width: 100%;
   height: 100%;
@@ -20,6 +25,7 @@ html, body {
   flex-direction: column;
   align-items: flex-end;
   justify-content: flex-end;
+  transition: opacity 0.3s ease;
 }
 
 /* 吹き出し */
@@ -30,7 +36,7 @@ html, body {
   max-width: 350px;
   min-width: 200px;
   background: #fff;
-  border: 3px solid #5b9a2f;
+  border: 3px solid var(--theme-primary);
   border-radius: 16px;
   padding: 14px 18px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -46,7 +52,7 @@ html, body {
   right: 60px;
   border-width: 16px 12px 0;
   border-style: solid;
-  border-color: #5b9a2f transparent transparent transparent;
+  border-color: var(--theme-primary) transparent transparent transparent;
 }
 
 #bubble::before {
@@ -114,15 +120,15 @@ html, body {
 .btn-always-allow {
   width: 100%;
   background: #fff;
-  color: #5b9a2f;
-  border: 2px solid #5b9a2f !important;
+  color: var(--theme-primary);
+  border: 2px solid var(--theme-primary) !important;
   font-size: 12px !important;
   padding: 5px 12px !important;
 }
 
 .btn-always-allow:hover {
-  background: #f0f7e8;
-  box-shadow: 0 2px 8px rgba(91, 154, 47, 0.2);
+  background: var(--theme-hover-bg);
+  box-shadow: 0 2px 8px var(--theme-shadow-light);
 }
 
 .btn-always-allow.hidden {
@@ -148,12 +154,12 @@ html, body {
 }
 
 .btn-allow {
-  background: #5b9a2f;
+  background: var(--theme-primary);
   color: #fff;
 }
 
 .btn-allow:hover {
-  box-shadow: 0 2px 8px rgba(91, 154, 47, 0.4);
+  box-shadow: 0 2px 8px var(--theme-shadow);
 }
 
 .btn-deny {
@@ -185,6 +191,7 @@ html, body {
   cursor: grab;
   user-select: none;
   padding: 5px;
+  transition: opacity 0.3s ease;
 }
 
 #character.dragging {
@@ -195,4 +202,24 @@ html, body {
   height: 300px;
   width: auto;
   pointer-events: none;
+}
+
+/* プロジェクト名 */
+#project-name {
+  text-align: center;
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--theme-primary);
+  padding: 2px 12px;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  align-self: flex-end;
+  margin-right: 50px;
+  transition: opacity 0.3s ease;
+}
+
+#project-name:empty {
+  display: none;
 }
