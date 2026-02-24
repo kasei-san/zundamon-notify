@@ -26,6 +26,9 @@ echo '{"type":"notification","id":"test-2","session_id":"session-aaa","cwd":"/Us
 # セッション終了テスト
 echo '{"type":"session_end","id":"end-1","session_id":"session-aaa"}' | socat -t 2 - UNIX-CONNECT:/tmp/zundamon-claude.sock
 
+# AskUserQuestion のテスト（質問と選択肢を表示、ボタンなし）
+echo '{"type":"permission_request","id":"test-q1","session_id":"session-aaa","cwd":"/tmp","pid":12345,"tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"どちらのアプローチを使うのだ？","header":"Approach","options":[{"label":"Option A","description":"既存パターンを使う"},{"label":"Option B","description":"新しいパターンを作る"}],"multiSelect":false}]},"description":"AskUserQuestion"}' | socat -t 30 - UNIX-CONNECT:/tmp/zundamon-claude.sock
+
 # session_idなし（後方互換: "default"セッション）
 echo '{"type":"notification","id":"test-3","message":"旧形式テスト"}' | socat -t 2 - UNIX-CONNECT:/tmp/zundamon-claude.sock
 ```
@@ -44,7 +47,7 @@ echo '{"type":"notification","id":"test-3","message":"旧形式テスト"}' | so
 メッセージ型（`PERMISSION_REQUEST`, `NOTIFICATION`, `STOP`, `DISMISS`, `SESSION_END`）の定義とパース/シリアライズ。`session_id` 未設定時は `"default"` にフォールバック。
 
 ### レンダラー (`renderer/`)
-吹き出し UI の表示制御。Permission はキューベースで複数同時保持し順次表示（待ち件数表示付き）。許可/拒否ボタン付き（590秒タイムアウト）。`permission_suggestions` がある場合は「次回から聞かないのだ」ボタンを表示。CSS変数で色テーマを適用。キャラクターのドラッグ&ドロップによるウィンドウ移動、右クリックコンテキストメニュー（再起動・このずんだもんを終了・終了）に対応。
+吹き出し UI の表示制御。Permission はキューベースで複数同時保持し順次表示（待ち件数表示付き）。許可/拒否ボタン付き（590秒タイムアウト）。`permission_suggestions` がある場合は「次回から聞かないのだ」ボタンを表示。`AskUserQuestion`（`tool_name === 'AskUserQuestion'`）の場合は質問テキストと選択肢を番号付きリスト（label + description）で表示し、許可/拒否ボタンは非表示（ユーザーはターミナルで回答、dismiss hookで自動消去）。CSS変数で色テーマを適用。キャラクターのドラッグ&ドロップによるウィンドウ移動、右クリックコンテキストメニュー（再起動・このずんだもんを終了・終了）に対応。
 
 ### Hook スクリプト (`hooks/`)
 全スクリプトでstdin JSONから `session_id`/`cwd` を抽出し、`$PPID` を pid としてUDSメッセージに含める。`zundamon-permission.sh` は Python3 で安全にパースし socat でブロッキング送信（590秒タイムアウト）。シグナルトラップ（`trap 'kill 0' TERM INT`）でコンソール側操作時にsocat子プロセスの孤立を防止。`zundamon-notify.sh` は permission_prompt 由来の通知をフィルタリング。`zundamon-dismiss.sh`/`zundamon-pre-dismiss.sh` はセッション単位でdismiss（`zundamon-pre-dismiss.sh` は `cwd`/`pid` も含めて送信し、セッション作成のトリガーにもなる）。`zundamon-session-end.sh` は SessionEnd hook でセッション終了を通知。`~/.claude/settings.json` に SessionEnd hook を登録済み。
