@@ -34,12 +34,13 @@ class SocketServer {
       const sessionInfo = {
         pid: msg.pid || null,
         cwd: msg.cwd || '',
+        transcriptPath: msg.transcript_path || '',
         pendingConnections: new Map(),
         lastMessageAt: Date.now(),
       };
       this.sessions.set(sessionId, sessionInfo);
       if (this.callbacks.onSessionStart) {
-        this.callbacks.onSessionStart(sessionId, { pid: sessionInfo.pid, cwd: sessionInfo.cwd });
+        this.callbacks.onSessionStart(sessionId, { pid: sessionInfo.pid, cwd: sessionInfo.cwd, transcriptPath: sessionInfo.transcriptPath });
       }
     }
     const session = this.sessions.get(sessionId);
