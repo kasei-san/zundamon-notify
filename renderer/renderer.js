@@ -6,7 +6,6 @@ const btnDeny = document.getElementById('btn-deny');
 const btnClose = document.getElementById('btn-close');
 const btnAlwaysAllow = document.getElementById('btn-always-allow');
 const character = document.getElementById('character');
-const projectName = document.getElementById('project-name');
 const appEl = document.getElementById('app');
 
 // Permission リクエストのキュー（複数同時対応）
@@ -30,9 +29,7 @@ function setupMouseForwarding() {
   document.addEventListener('mousemove', (e) => {
     const isOverCharacter = isPointInElement(e, character);
     const isOverBubble = bubbleVisible && isPointInElement(e, bubble);
-    const isOverProjectName = projectName.textContent && isPointInElement(e, projectName);
-
-    if (isOverCharacter || isOverBubble || isOverProjectName) {
+    if (isOverCharacter || isOverBubble) {
       window.electronAPI.setIgnoreMouse(false);
     } else if (!bubbleVisible) {
       window.electronAPI.setIgnoreMouse(true);
@@ -125,14 +122,6 @@ function getCurrentRequest() {
 // セッション情報の受信
 window.electronAPI.onSessionInfo((info) => {
   console.log('Session info received:', info);
-
-  // セッションタイトルを表示（タイトルがなければcwdのディレクトリ名）
-  if (info.title) {
-    projectName.textContent = info.title;
-  } else if (info.cwd) {
-    const dirName = info.cwd.split('/').filter(Boolean).pop() || '';
-    projectName.textContent = dirName;
-  }
 
   // 色テーマ適用
   if (info.colorTheme) {

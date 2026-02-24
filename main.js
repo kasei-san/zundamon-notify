@@ -1,7 +1,6 @@
 const { app, BrowserWindow, screen, ipcMain, Menu, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const readline = require('readline');
 const { SocketServer } = require('./src/socket-server');
 
 // セッション別ウィンドウ管理: session_id -> BrowserWindow
@@ -23,55 +22,6 @@ let nextThemeIndex = 0;
 const permissionFIFO = [];
 
 /**
- * transcript JSONLからセッションタイトル（最初のユーザーメッセージ）を抽出する
- * @returns {Promise<string>} タイトル文字列（フォールバック: cwdのディレクトリ名）
- */
-async function extractSessionTitle(transcriptPath, cwd) {
-  const fallback = cwd ? cwd.split('/').filter(Boolean).pop() || '' : '';
-
-  if (!transcriptPath || !fs.existsSync(transcriptPath)) {
-    return fallback;
-  }
-
-  try {
-    const rl = readline.createInterface({
-      input: fs.createReadStream(transcriptPath),
-      crlfDelay: Infinity,
-    });
-
-    for await (const line of rl) {
-      try {
-        const entry = JSON.parse(line);
-        if (entry.type === 'user' && entry.message) {
-          const content = entry.message.content;
-          let text = '';
-          if (typeof content === 'string') {
-            text = content;
-          } else if (Array.isArray(content)) {
-            const textBlock = content.find((c) => c.type === 'text');
-            if (textBlock) text = textBlock.text;
-          }
-          text = text.trim();
-          if (text) {
-            rl.close();
-            // URLを除去し、最初の行のみ、50文字以内に切り詰め
-            let firstLine = text.split('\n')[0].replace(/https?:\/\/\S+/g, '').trim();
-            if (!firstLine) firstLine = text.split('\n')[0].trim();
-            return firstLine.length > 50 ? firstLine.substring(0, 50) + '...' : firstLine;
-          }
-        }
-      } catch {
-        // JSONパースエラーは無視
-      }
-    }
-  } catch {
-    // ファイル読み取りエラー
-  }
-
-  return fallback;
-}
-
-/**
  * event.senderからsession_idを逆引きする
  */
 function getSessionIdFromSender(sender) {
@@ -86,12 +36,12 @@ function getSessionIdFromSender(sender) {
 /**
  * セッション用ウィンドウを生成する
  */
-function createSessionWindow(sessionId, { pid, cwd, transcriptPath }) {
+function createSessionWindow(sessionId, { pid, cwd }) {
   if (windows.has(sessionId)) return windows.get(sessionId);
 
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
   const winWidth = 400;
-  const winHeight = 550; // プロジェクト名表示分を追加
+  const winHeight = 550;
 
   // ウィンドウ位置: 既存ウィンドウ数に応じてオフセット
   const offset = windows.size * 60;
@@ -132,9 +82,8 @@ function createSessionWindow(sessionId, { pid, cwd, transcriptPath }) {
   const theme = COLOR_THEMES[nextThemeIndex % COLOR_THEMES.length];
   nextThemeIndex++;
 
-  win.webContents.on('did-finish-load', async () => {
-    const title = await extractSessionTitle(transcriptPath, cwd);
-    win.webContents.send('session-info', { sessionId, pid, cwd, colorTheme: theme, title });
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.send('session-info', { sessionId, pid, cwd, colorTheme: theme });
   });
 
   win.on('closed', () => {
