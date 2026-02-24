@@ -37,10 +37,10 @@ fi
 
 echo "$REQUEST" | socat -t 2 - UNIX-CONNECT:"$SOCKET_PATH" 2>/dev/null
 
-# --- Haiku API でセッションタイトルを動的更新 ---
+# --- claude CLI でセッションタイトルを動的更新 ---
 
-# ANTHROPIC_API_KEY が未設定なら何もしない
-if [ -z "$ANTHROPIC_API_KEY" ]; then
+# claude コマンドが存在しなければスキップ
+if ! command -v claude &>/dev/null; then
   exit 0
 fi
 
@@ -99,48 +99,16 @@ if [ -z "$CONVERSATION" ]; then
   exit 0
 fi
 
-# Haiku API 呼び出し（urllib.request使用、外部依存ゼロ）
-HAIKU_RESPONSE=$(python3 -c "
-import urllib.request, json, sys, os
-
-api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-if not api_key:
-    sys.exit(1)
-
-conversation = sys.stdin.read()
-
-payload = {
-    'model': 'claude-haiku-4-5-20251001',
-    'max_tokens': 50,
-    'messages': [{
-        'role': 'user',
-        'content': f'以下はClaudeとユーザーの会話の末尾部分です。この会話のトピックを日本語で20文字以内で要約してください。記号・改行なしで名詞句のみ返してください。\n\n{conversation}'
-    }]
-}
-
-req = urllib.request.Request(
-    'https://api.anthropic.com/v1/messages',
-    data=json.dumps(payload).encode(),
-    headers={
-        'x-api-key': api_key,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-    },
-    method='POST'
-)
-
-try:
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        data = json.loads(resp.read())
-        text = data.get('content', [{}])[0].get('text', '').strip()
-        print(text[:20] if text else '')
-except Exception:
-    sys.exit(1)
-" <<< "$CONVERSATION" 2>/dev/null)
+# claude CLI (print mode) でタイトル要約を生成
+HAIKU_RESPONSE=$(echo "$CONVERSATION" | claude -p --model claude-haiku-4-5-20251001 --max-tokens 50 \
+  "以下はClaudeとユーザーの会話の末尾部分です。この会話のトピックを日本語で20文字以内で要約してください。記号・改行なしで名詞句のみ返してください。" 2>/dev/null)
 
 if [ -z "$HAIKU_RESPONSE" ]; then
   exit 0
 fi
+
+# 20文字に切り詰め
+HAIKU_RESPONSE=$(echo "$HAIKU_RESPONSE" | head -1 | cut -c1-20)
 
 # title_update メッセージを送信
 TITLE_MSG=$(python3 -c "
