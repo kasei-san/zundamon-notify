@@ -35,7 +35,7 @@ echo '{"type":"notification","id":"test-3","message":"旧形式テスト"}' | so
 通信フロー: **Claude Code hook → bash スクリプト → UDS (`/tmp/zundamon-claude.sock`) → Electron main → IPC → renderer**
 
 ### メインプロセス (`main.js`)
-セッションごとに透明・フレームレス・常時最前面のウィンドウを動的生成し画面右下に配置（ウィンドウ数に応じてオフセット）。`windows: Map<session_id, BrowserWindow>` でセッション別に管理。色テーマパレット（green/blue/purple/orange/pink）をセッション順に割り当て、ずんだもん画像のhue-rotateで色相変更。Permission FIFO で到着順管理し、先頭セッションのウィンドウを`screen-saver`レベルで最前面に配置。PIDポーリングGC（10秒間隔）でプロセスが死んだセッションを自動破棄。
+セッションごとに透明・フレームレス・常時最前面のウィンドウを動的生成し画面右下に配置（ウィンドウ数に応じてオフセット）。`windows: Map<session_id, BrowserWindow>` でセッション別に管理。色テーマパレット（green/blue/purple/orange/pink）をセッション順に割り当て、ずんだもん画像のhue-rotateで色相変更。Permission FIFO で到着順管理し、先頭セッションのウィンドウを`screen-saver`レベルで最前面に配置。タイムアウトベースGC（30秒間隔チェック、5分間メッセージなしでセッション破棄）。hookの`$PPID`は一時プロセスのためPID生存確認は不可。SessionEnd hookとタイムアウトGCでライフサイクル管理。
 
 ### UDS サーバー (`src/socket-server.js`)
 `/tmp/zundamon-claude.sock` で JSON Lines プロトコルを処理。`sessions: Map<session_id, {pid, cwd, pendingConnections}>` でセッション単位管理。コールバック方式（`onMessage`, `onSessionStart`, `onSessionEnd`, `onPermissionRequest`, `onSessionPermissionsDismiss`, `onAllPermissionsDismiss`）で main.js が適切なウィンドウにルーティング。`session_id` 未設定メッセージは `"default"` にフォールバック。DISMISS は対象セッションのpendingのみクリア。

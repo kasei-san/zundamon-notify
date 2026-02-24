@@ -272,34 +272,35 @@ function startSocketServer() {
 }
 
 /**
- * PIDポーリングGC: 10秒間隔で全セッションのPID生存確認
- * プロセスが死んでいるセッションを自動破棄する
+ * セッションGC: 最後のメッセージ受信から一定時間経過したセッションを破棄する
+ * hookのPIDは一時プロセスなのでPID生存確認は使えない。
+ * 代わりにSessionEnd hookとタイムアウトベースのGCで管理する。
  */
+const SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5分間メッセージなしでGC
 let gcInterval;
-function startPidGC() {
+function startSessionGC() {
   gcInterval = setInterval(() => {
     if (!socketServer) return;
+    const now = Date.now();
     for (const sessionId of socketServer.getAllSessionIds()) {
-      if (sessionId === 'default') continue; // defaultセッションはGC対象外
+      if (sessionId === 'default') continue;
       const session = socketServer.getSession(sessionId);
-      if (!session || !session.pid) continue;
-      try {
-        process.kill(session.pid, 0); // 生存確認（シグナルは送らない）
-      } catch (err) {
-        if (err.code === 'ESRCH') {
-          // プロセスが存在しない → セッション破棄
-          console.log(`PID GC: session ${sessionId} (pid=${session.pid}) is dead, removing`);
-          removeSession(sessionId);
-        }
+      if (!session) continue;
+      // pending接続がある場合はGCしない（Permission待ち中）
+      if (session.pendingConnections.size > 0) continue;
+      // 最終メッセージ時刻からタイムアウト経過でGC
+      if (session.lastMessageAt && (now - session.lastMessageAt) > SESSION_TIMEOUT_MS) {
+        console.log(`Session GC: session ${sessionId} timed out, removing`);
+        removeSession(sessionId);
       }
     }
-  }, 10000);
+  }, 30000); // 30秒間隔でチェック
 }
 
 app.whenReady().then(() => {
   setupIPC();
   startSocketServer();
-  startPidGC();
+  startSessionGC();
 });
 
 app.on('window-all-closed', () => {
