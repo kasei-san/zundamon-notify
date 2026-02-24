@@ -21,24 +21,17 @@ let bubbleVisible = false;
 
 // マウスがUI要素に乗ったらクリックスルーを解除、離れたら復活
 function setupMouseForwarding() {
-  document.addEventListener('mouseenter', () => {
-    // 吹き出し表示中はクリックスルーを解除
-    if (bubbleVisible) {
-      window.electronAPI.setIgnoreMouse(false);
-    }
-  });
-
   document.addEventListener('mouseleave', () => {
     window.electronAPI.setIgnoreMouse(true);
   });
 
-  // mousemoveでもチェック（forward: trueでmousemoveが来る）
+  // mousemoveでチェック（forward: trueでmousemoveが来る）
   document.addEventListener('mousemove', (e) => {
     const isOverCharacter = isPointInElement(e, character);
     const isOverBubble = bubbleVisible && isPointInElement(e, bubble);
     if (isOverCharacter || isOverBubble) {
       window.electronAPI.setIgnoreMouse(false);
-    } else if (!bubbleVisible) {
+    } else {
       window.electronAPI.setIgnoreMouse(true);
     }
   });
@@ -71,9 +64,6 @@ function showBubble(text, showButtons = false, { html = false } = {}) {
   }
 
   bubble.classList.remove('hidden');
-
-  // 吹き出し表示中はクリックスルーを解除
-  window.electronAPI.setIgnoreMouse(false);
 }
 
 function hideBubble() {
