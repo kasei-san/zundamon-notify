@@ -271,9 +271,35 @@ function startSocketServer() {
   socketServer.start();
 }
 
+/**
+ * PIDポーリングGC: 10秒間隔で全セッションのPID生存確認
+ * プロセスが死んでいるセッションを自動破棄する
+ */
+let gcInterval;
+function startPidGC() {
+  gcInterval = setInterval(() => {
+    if (!socketServer) return;
+    for (const sessionId of socketServer.getAllSessionIds()) {
+      if (sessionId === 'default') continue; // defaultセッションはGC対象外
+      const session = socketServer.getSession(sessionId);
+      if (!session || !session.pid) continue;
+      try {
+        process.kill(session.pid, 0); // 生存確認（シグナルは送らない）
+      } catch (err) {
+        if (err.code === 'ESRCH') {
+          // プロセスが存在しない → セッション破棄
+          console.log(`PID GC: session ${sessionId} (pid=${session.pid}) is dead, removing`);
+          removeSession(sessionId);
+        }
+      }
+    }
+  }, 10000);
+}
+
 app.whenReady().then(() => {
   setupIPC();
   startSocketServer();
+  startPidGC();
 });
 
 app.on('window-all-closed', () => {
@@ -281,6 +307,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  if (gcInterval) clearInterval(gcInterval);
   if (socketServer) {
     socketServer.stop();
   }

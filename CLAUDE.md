@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクト概要
 
-Claude Code の hook（PermissionRequest / Notification / Stop）発火時にデスクトップ通知を表示する Electron アプリ。ずんだもんキャラクターの吹き出しで通知を表示し、Permission はブロッキングでユーザーの許可/拒否を待つ。
+Claude Code の hook（PermissionRequest / Notification / Stop / SessionEnd）発火時にデスクトップ通知を表示する Electron アプリ。ずんだもんキャラクターの吹き出しで通知を表示し、Permission はブロッキングでユーザーの許可/拒否を待つ。複数 Claude Code セッションに対応し、セッションごとに独立したずんだもんウィンドウを表示する。
 
 ## 開発コマンド
 
@@ -17,11 +17,17 @@ npm start              # Electron アプリ起動（= electron .）
 テストフレームワークは未導入。手動テストは socat で UDS にメッセージ送信して行う:
 
 ```bash
-# Permission リクエストのテスト
-echo '{"type":"permission_request","id":"test-1","tool_name":"Bash","tool_input":{"command":"ls"},"description":"テスト"}' | socat - UNIX-CONNECT:/tmp/zundamon-claude.sock
+# Permission リクエストのテスト（session_id付き）
+echo '{"type":"permission_request","id":"test-1","session_id":"session-aaa","cwd":"/Users/you/work/project","pid":12345,"tool_name":"Bash","tool_input":{"command":"ls"},"description":"テスト"}' | socat -t 30 - UNIX-CONNECT:/tmp/zundamon-claude.sock
 
 # Notification のテスト
-echo '{"type":"notification","id":"test-2","message":"テスト通知"}' | socat - UNIX-CONNECT:/tmp/zundamon-claude.sock
+echo '{"type":"notification","id":"test-2","session_id":"session-aaa","cwd":"/Users/you/work/project","message":"テスト通知"}' | socat -t 2 - UNIX-CONNECT:/tmp/zundamon-claude.sock
+
+# セッション終了テスト
+echo '{"type":"session_end","id":"end-1","session_id":"session-aaa"}' | socat -t 2 - UNIX-CONNECT:/tmp/zundamon-claude.sock
+
+# session_idなし（後方互換: "default"セッション）
+echo '{"type":"notification","id":"test-3","message":"旧形式テスト"}' | socat -t 2 - UNIX-CONNECT:/tmp/zundamon-claude.sock
 ```
 
 ## アーキテクチャ
@@ -29,19 +35,19 @@ echo '{"type":"notification","id":"test-2","message":"テスト通知"}' | socat
 通信フロー: **Claude Code hook → bash スクリプト → UDS (`/tmp/zundamon-claude.sock`) → Electron main → IPC → renderer**
 
 ### メインプロセス (`main.js`)
-透明・フレームレス・常時最前面のウィンドウを画面右下に配置。UDS サーバーを起動し、IPC でレンダラーと通信。吹き出し非表示時はマウスイベント透過（クリックスルー）。右クリックコンテキストメニュー（再起動・終了）の処理も担当。Permission request 表示中のみグローバルショートカット（`Ctrl+Shift+Y` / `Ctrl+Shift+N` / `Ctrl+Shift+A`）を `globalShortcut` API で登録（重複登録ガード付き）。全Permission解消時に `onPermissionDismiss` コールバック経由で解除。
+セッションごとに透明・フレームレス・常時最前面のウィンドウを動的生成し画面右下に配置（ウィンドウ数に応じてオフセット）。`windows: Map<session_id, BrowserWindow>` でセッション別に管理。色テーマパレット（green/blue/purple/orange/pink）をセッション順に割り当て、ずんだもん画像のhue-rotateで色相変更。Permission FIFO で到着順管理し、先頭セッションのウィンドウを`screen-saver`レベルで最前面に配置。PIDポーリングGC（10秒間隔）でプロセスが死んだセッションを自動破棄。
 
 ### UDS サーバー (`src/socket-server.js`)
-`/tmp/zundamon-claude.sock` で JSON Lines プロトコルを処理。`permission_request` は接続を保持してレスポンス待ち（複数同時保持可能）、`notification`/`stop` は即座にクローズ。マルチエージェント対応のため、新メッセージ受信時にpending接続を自動dismissしない（DISMISSメッセージのみが全dismiss）。全pendingが解消された時点で`onPermissionDismiss`コールバックを呼びショートカットを解除。
+`/tmp/zundamon-claude.sock` で JSON Lines プロトコルを処理。`sessions: Map<session_id, {pid, cwd, pendingConnections}>` でセッション単位管理。コールバック方式（`onMessage`, `onSessionStart`, `onSessionEnd`, `onPermissionRequest`, `onSessionPermissionsDismiss`, `onAllPermissionsDismiss`）で main.js が適切なウィンドウにルーティング。`session_id` 未設定メッセージは `"default"` にフォールバック。DISMISS は対象セッションのpendingのみクリア。
 
 ### プロトコル (`src/protocol.js`)
-メッセージ型（`PERMISSION_REQUEST`, `NOTIFICATION`, `STOP`, `DISMISS`）の定義とパース/シリアライズ。
+メッセージ型（`PERMISSION_REQUEST`, `NOTIFICATION`, `STOP`, `DISMISS`, `SESSION_END`）の定義とパース/シリアライズ。`session_id` 未設定時は `"default"` にフォールバック。
 
 ### レンダラー (`renderer/`)
-吹き出し UI の表示制御。Permission はキューベースで複数同時保持し順次表示（待ち件数表示付き）。許可/拒否ボタン付き（590秒タイムアウト）。`permission_suggestions` がある場合は「次回から聞かないのだ」ボタンを表示し、押すと許可 + `updatedPermissions` をレスポンスに含める。Notification・Stop はPermissionキューが空の場合のみ表示。キャラクターのドラッグ&ドロップによるウィンドウ移動にも対応（JavaScript + IPC で実装、`-webkit-app-region: drag` は未使用）。キャラクターの右クリックでコンテキストメニュー（再起動・終了）を表示。グローバルショートカット（`Ctrl+Shift+Y` で許可、`Ctrl+Shift+N` で拒否、`Ctrl+Shift+A` で次回から聞かない）にも対応。
+吹き出し UI の表示制御。Permission はキューベースで複数同時保持し順次表示（待ち件数表示付き）。許可/拒否ボタン付き（590秒タイムアウト）。`permission_suggestions` がある場合は「次回から聞かないのだ」ボタンを表示。cwdからプロジェクト名を足元に表示。CSS変数で色テーマを適用。キャラクターのドラッグ&ドロップによるウィンドウ移動、右クリックコンテキストメニュー（再起動・このずんだもんを終了・終了）に対応。
 
 ### Hook スクリプト (`hooks/`)
-Claude Code の hook から呼ばれる bash スクリプト。`zundamon-permission.sh` は Python3 で stdin から直接 JSON パースし、`permission_suggestions` があればUDSリクエストに含める。socat で UDS に送信（ブロッキング、590秒タイムアウト）。レスポンスに `updatedPermissions` があれば Claude Code 出力の `decision` に含めて返す。`zundamon-notify.sh` は Notification hook で、`permission_prompt` 由来の通知（"Claude needs your permission"を含むメッセージ）をスクリプト内でフィルタリングしスキップする。`zundamon-dismiss.sh` は PostToolUse で、`zundamon-pre-dismiss.sh` は UserPromptSubmit と PreToolUse で発火し、残った吹き出しを dismiss する。
+全スクリプトでstdin JSONから `session_id`/`cwd` を抽出し、`$PPID` を pid としてUDSメッセージに含める。`zundamon-permission.sh` は Python3 で安全にパースし socat でブロッキング送信（590秒タイムアウト）。`zundamon-notify.sh` は permission_prompt 由来の通知をフィルタリング。`zundamon-dismiss.sh`/`zundamon-pre-dismiss.sh` はセッション単位でdismiss。`zundamon-session-end.sh` は SessionEnd hook でセッション終了を通知。
 
 ## 参考プロジェクト
 
