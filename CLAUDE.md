@@ -43,6 +43,10 @@ echo '{"type":"notification","id":"test-2","message":"テスト通知"}' | socat
 ### Hook スクリプト (`hooks/`)
 Claude Code の hook から呼ばれる bash スクリプト。`zundamon-permission.sh` は Python3 で stdin から直接 JSON パースし、`permission_suggestions` があればUDSリクエストに含める。socat で UDS に送信（ブロッキング、590秒タイムアウト）。レスポンスに `updatedPermissions` があれば Claude Code 出力の `decision` に含めて返す。`zundamon-notify.sh` は Notification hook で、`permission_prompt` 由来の通知（"Claude needs your permission"を含むメッセージ）をスクリプト内でフィルタリングしスキップする。`zundamon-dismiss.sh` は PostToolUse で、`zundamon-pre-dismiss.sh` は UserPromptSubmit と PreToolUse で発火し、残った吹き出しを dismiss する。
 
+## 参考プロジェクト
+
+- **[claude-island](https://github.com/farouqaldori/claude-island)**: macOS ネイティブ（Swift）の複数 Claude Code セッション管理ツール。hook の仕組み、UDS 通信、session_id によるマルチセッション管理など、本プロジェクトと共通する課題を解決済み。調査が必要だったりハマったときに参考にすること。
+
 ## 開発ルール
 
 ### 動作確認時のアプリ再起動
