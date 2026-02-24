@@ -121,6 +121,7 @@ class SocketServer {
         for (const [sessionId, session] of this.sessions) {
           for (const [id, s] of session.pendingConnections) {
             if (s === socket) {
+              console.log(`[DEBUG][SOCKET_CLOSE] Socket closed for pending permission id=${id}, session=${sessionId}`);
               session.pendingConnections.delete(id);
               if (this.callbacks.onMessage) {
                 this.callbacks.onMessage(sessionId, 'permission-dismissed', { id });
@@ -186,7 +187,10 @@ class SocketServer {
         // 対象セッションのpendingのみクリア
         const session = this.sessions.get(sessionId);
         if (session) {
+          const pendingIds = [...session.pendingConnections.keys()];
+          console.log(`[DEBUG][DISMISS] sessionId=${sessionId}, pendingConnections=${JSON.stringify(pendingIds)}`);
           for (const [id, s] of session.pendingConnections) {
+            console.log(`[DEBUG][DISMISS] Dismissing permission id=${id} for session=${sessionId}`);
             if (this.callbacks.onMessage) {
               this.callbacks.onMessage(sessionId, 'permission-dismissed', { id });
             }
@@ -195,6 +199,7 @@ class SocketServer {
           session.pendingConnections.clear();
         }
         // Notification/Stopの吹き出しも閉じる
+        console.log(`[DEBUG][DISMISS] Sending dismiss-bubble for session=${sessionId}`);
         if (this.callbacks.onMessage) {
           this.callbacks.onMessage(sessionId, 'dismiss-bubble', {});
         }
