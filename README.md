@@ -173,7 +173,7 @@ npm start
 
 複数の Claude Code セッションを同時起動すると、各セッションに対応するずんだもんが自動的に表示されます。
 
-- **色分け**: セッションごとに異なる色（green/blue/purple/orange/pink）が割り当てられ、ずんだもんの色相が変わります
+- **色分け**: セッションごとに異なる色（green/blue/purple/orange/pink/red/cyan/yellow/lavender/teal の10色）の事前生成画像が割り当てられます
 - **最前面制御**: Permission 待ちのキュー先頭セッションのずんだもんが最前面に表示されます
 - **ショートカット**: グローバルショートカットはキュー先頭のセッションに反応します
 - **自動クリーンアップ**: セッション終了時（SessionEnd hook）または5分間メッセージなし（タイムアウトGC）でずんだもんが自動的に消えます
@@ -224,7 +224,8 @@ zundamon-notify/
 │   ├── socket-server.js       # UDS サーバー（セッション単位管理）
 │   └── protocol.js            # メッセージプロトコル定義
 ├── assets/
-│   └── zundamon.png           # 立ち絵 PNG（196x300px）
+│   ├── zundamon.png           # 立ち絵 PNG（196x300px、緑・オリジナル）
+│   └── zundamon-{color}.png   # 色違い画像（scripts/generate-variants.py で生成）
 ├── hooks/
 │   ├── zundamon-permission.sh # PermissionRequest hook（ブロッキング）
 │   ├── zundamon-notify.sh     # Notification hook
@@ -240,7 +241,8 @@ zundamon-notify/
 ├── com.zundamon.notify.plist   # LaunchAgent 定義（テンプレート）
 └── scripts/
     ├── install.sh             # インストールスクリプト（LaunchAgent 登録込み）
-    └── uninstall.sh           # アンインストールスクリプト
+    ├── uninstall.sh           # アンインストールスクリプト
+    └── generate-variants.py   # 色違いずんだもん画像生成スクリプト（Python + Pillow）
 ```
 
 ## Claude Code スキル
@@ -288,7 +290,12 @@ echo '{"type":"session_end","id":"end","session_id":"test-session"}' \
 
 ## 立ち絵の差し替え
 
-`assets/zundamon.png` を差し替えれば、別の画像に変更できます。
+`assets/zundamon.png` を差し替えた後、色違い画像を再生成してください：
+
+```bash
+pip install Pillow  # 未インストールの場合
+python3 scripts/generate-variants.py
+```
 
 ## 素材のライセンス
 
