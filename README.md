@@ -10,9 +10,10 @@ Claude Code で作業中、PermissionRequest（許可確認）や入力待ちが
 - Claude Code が許可を求めると、ずんだもんが吹き出しで通知
 - 「許可するのだ！」「ダメなのだ！」ボタンで操作
 - ずんだもんをドラッグして好きな位置に移動可能
-- ずんだもんを右クリックでメニュー表示（再起動・終了）
+- ずんだもんを右クリックでメニュー表示（再起動・このずんだもんを終了・終了）
 - グローバルショートカットで他のアプリがアクティブでも許可/拒否可能
 - マルチエージェント実行時も複数の Permission リクエストをキューで管理し順次表示
+- **複数 Claude Code セッション対応**: セッションごとに独立したずんだもんウィンドウを表示、色とプロジェクト名で識別
 
 ## 必要なもの
 
@@ -104,6 +105,16 @@ brew install socat
           }
         ]
       }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/work/zundamon-notify/hooks/zundamon-session-end.sh"
+          }
+        ]
+      }
     ]
   }
 }
@@ -154,8 +165,19 @@ npm start
 | **UserPromptSubmit** | ユーザー入力時に残っている吹き出し（Stop等）を自動dismiss |
 | **PreToolUse** | ツール実行開始時に残っている吹き出し（Permission等）を自動dismiss |
 | **PostToolUse** | ツール実行完了時に残っている吹き出しを自動dismiss |
+| **SessionEnd** | セッション終了時にそのセッションのずんだもんウィンドウを閉じる |
 
 アプリ未起動時は hook がフォールバック（exit 0）するため、通常の Claude Code の動作に影響しません。
+
+### マルチセッション
+
+複数の Claude Code セッションを同時起動すると、各セッションに対応するずんだもんが自動的に表示されます。
+
+- **プロジェクト名**: 各ずんだもんの足元に、cwd のディレクトリ名が表示されます
+- **色分け**: セッションごとに異なる色（green/blue/purple/orange/pink）が割り当てられ、ずんだもんの色相が変わります
+- **最前面制御**: Permission 待ちのキュー先頭セッションのずんだもんが最前面に表示されます
+- **ショートカット**: グローバルショートカットはキュー先頭のセッションに反応します
+- **自動クリーンアップ**: セッション終了時（SessionEnd hook）または5分間メッセージなし（タイムアウトGC）でずんだもんが自動的に消えます
 
 ### グローバルショートカット
 
@@ -170,14 +192,15 @@ Permission request の吹き出し表示中のみ、以下のグローバルシ�
 ## アーキテクチャ
 
 ```
-Claude Code
-  │ hook 発火 (stdin JSON)
+Claude Code (複数セッション)
+  │ hook 発火 (stdin JSON with session_id, cwd, pid)
   ▼
 Hook Script (bash)
   │ Unix Domain Socket 経由でアプリに送信
   │ PermissionRequest はレスポンスを待ってブロック
   ▼
 Electron App (UDS Server: /tmp/zundamon-claude.sock)
+  │ session_id でセッション識別 → 対応ウィンドウにルーティング
   │ 吹き出し UI 表示
   │ ユーザーがボタンクリック → レスポンス返却
   ▼
@@ -192,14 +215,14 @@ Claude Code (decision 適用)
 ```
 zundamon-notify/
 ├── package.json
-├── main.js                    # Electron メインプロセス
+├── main.js                    # Electron メインプロセス（マルチウィンドウ管理）
 ├── preload.js                 # preload スクリプト
 ├── renderer/
 │   ├── index.html             # メインウィンドウ
-│   ├── style.css              # スタイル（吹き出し、キャラクター）
+│   ├── style.css              # スタイル（CSS変数で色テーマ対応）
 │   └── renderer.js            # UI 制御ロジック
 ├── src/
-│   ├── socket-server.js       # UDS サーバー（メインプロセス側）
+│   ├── socket-server.js       # UDS サーバー（セッション単位管理）
 │   └── protocol.js            # メッセージプロトコル定義
 ├── assets/
 │   └── zundamon.png           # 立ち絵 PNG（196x300px）
@@ -208,7 +231,8 @@ zundamon-notify/
 │   ├── zundamon-notify.sh     # Notification hook
 │   ├── zundamon-stop.sh       # Stop hook（入力待ち通知）
 │   ├── zundamon-pre-dismiss.sh # UserPromptSubmit/PreToolUse hook（吹き出しdismiss）
-│   └── zundamon-dismiss.sh    # PostToolUse hook（吹き出しdismiss）
+│   ├── zundamon-dismiss.sh    # PostToolUse hook（吹き出しdismiss）
+│   └── zundamon-session-end.sh # SessionEnd hook（セッション終了通知）
 ├── .claude/
 │   └── skills/
 │       └── issue-and-fix/     # 問題→issue→plan→修正→PR の一気通貫スキル
@@ -250,13 +274,13 @@ zundamon-notify/
 echo '{"type":"stop","id":"test","message":"入力を待っているのだ！"}' \
   | socat - UNIX-CONNECT:/tmp/zundamon-claude.sock
 
-# Permission Request テスト（ボタンクリックでレスポンスが返る）
-echo '{"type":"permission_request","id":"test","tool_name":"Bash","tool_input":{"command":"echo hello"},"description":"echo hello"}' \
+# Permission Request テスト（セッション付き、別ウィンドウが出る）
+echo '{"type":"permission_request","id":"test","session_id":"test-session","cwd":"/Users/you/work/project","pid":12345,"tool_name":"Bash","tool_input":{"command":"echo hello"},"description":"echo hello"}' \
   | socat -t 30 - UNIX-CONNECT:/tmp/zundamon-claude.sock
 
-# Permission Request テスト（「次回から聞かない」ボタン付き）
-echo '{"type":"permission_request","id":"test","tool_name":"Bash","tool_input":{"command":"echo hello"},"description":"echo hello","permission_suggestions":[{"type":"toolAlwaysAllow","tool":"Bash"}]}' \
-  | socat -t 30 - UNIX-CONNECT:/tmp/zundamon-claude.sock
+# セッション終了テスト（ウィンドウが閉じる）
+echo '{"type":"session_end","id":"end","session_id":"test-session"}' \
+  | socat -t 2 - UNIX-CONNECT:/tmp/zundamon-claude.sock
 ```
 
 ## 既知の不具合

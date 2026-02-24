@@ -22,7 +22,7 @@ class SocketServer {
   constructor(callbacks) {
     this.callbacks = callbacks;
     this.server = null;
-    // セッション単位の管理: session_id -> { pid, cwd, pendingConnections: Map<id, socket> }
+    // セッション単位の管理: session_id -> { pid, cwd, pendingConnections: Map<id, socket>, lastMessageAt: number }
     this.sessions = new Map();
   }
 
@@ -35,13 +35,16 @@ class SocketServer {
         pid: msg.pid || null,
         cwd: msg.cwd || '',
         pendingConnections: new Map(),
+        lastMessageAt: Date.now(),
       };
       this.sessions.set(sessionId, sessionInfo);
       if (this.callbacks.onSessionStart) {
         this.callbacks.onSessionStart(sessionId, { pid: sessionInfo.pid, cwd: sessionInfo.cwd });
       }
     }
-    return this.sessions.get(sessionId);
+    const session = this.sessions.get(sessionId);
+    session.lastMessageAt = Date.now();
+    return session;
   }
 
   /**
