@@ -126,8 +126,10 @@ function getCurrentRequest() {
 window.electronAPI.onSessionInfo((info) => {
   console.log('Session info received:', info);
 
-  // cwdからディレクトリ名を抽出してプロジェクト名として表示
-  if (info.cwd) {
+  // セッションタイトルを表示（タイトルがなければcwdのディレクトリ名）
+  if (info.title) {
+    projectName.textContent = info.title;
+  } else if (info.cwd) {
     const dirName = info.cwd.split('/').filter(Boolean).pop() || '';
     projectName.textContent = dirName;
   }

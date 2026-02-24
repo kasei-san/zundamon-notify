@@ -27,7 +27,8 @@ req = {
     'pid': os.getppid(),
     'tool_name': data.get('tool_name', ''),
     'tool_input': tool_input,
-    'description': description
+    'description': description,
+    'transcript_path': data.get('transcript_path', '')
 }
 suggestions = data.get('permission_suggestions')
 if suggestions:
