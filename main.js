@@ -46,7 +46,7 @@ function createWindow() {
   // Permission Requestレスポンス
   ipcMain.on('permission-response', (_event, response) => {
     console.log('Permission response received:', JSON.stringify(response));
-    unregisterPermissionShortcuts();
+    // ショートカット解除はsocketServer.sendResponse内でpendingが空になった時にonPermissionDismissコールバック経由で行う
     if (socketServer) {
       socketServer.sendResponse(response);
     }
@@ -83,7 +83,12 @@ function createWindow() {
 
   // UDSサーバー起動
   socketServer = new SocketServer(mainWindow);
-  socketServer.onPermissionRequest = () => registerPermissionShortcuts();
+  socketServer.onPermissionRequest = () => {
+    // 重複登録を防ぐ
+    if (!globalShortcut.isRegistered('Ctrl+Shift+Y')) {
+      registerPermissionShortcuts();
+    }
+  };
   socketServer.onPermissionDismiss = () => unregisterPermissionShortcuts();
   socketServer.start();
 }
