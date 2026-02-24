@@ -22,8 +22,7 @@ req = {
     'id': 'dismiss',
     'session_id': data.get('session_id', 'default'),
     'cwd': data.get('cwd', ''),
-    'pid': int(os.environ.get('PPID', 0)),
-    'transcript_path': data.get('transcript_path', '')
+    'pid': int(os.environ.get('PPID', 0))
 }
 print(json.dumps(req))
 " 2>/dev/null)

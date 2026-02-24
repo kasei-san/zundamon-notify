@@ -203,23 +203,3 @@ html, body {
   width: auto;
   pointer-events: none;
 }
-
-/* プロジェクト名 */
-#project-name {
-  text-align: center;
-  font-size: 11px;
-  font-weight: bold;
-  color: var(--theme-primary);
-  padding: 2px 12px;
-  max-width: 200px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  align-self: flex-end;
-  margin-right: 50px;
-  transition: opacity 0.3s ease;
-}
-
-#project-name:empty {
-  display: none;
-}
