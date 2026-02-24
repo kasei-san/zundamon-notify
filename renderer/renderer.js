@@ -152,6 +152,13 @@ window.electronAPI.onSessionInfo((info) => {
   }
 });
 
+// Title Update（Haiku APIによる動的タイトル更新）
+window.electronAPI.onTitleUpdate((data) => {
+  if (data.title) {
+    projectName.textContent = data.title;
+  }
+});
+
 // Permission Request
 window.electronAPI.onPermissionRequest((data) => {
   permissionQueue.push(data);

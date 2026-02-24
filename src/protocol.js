@@ -9,6 +9,7 @@ const MESSAGE_TYPES = {
   STOP: 'stop',
   DISMISS: 'dismiss',
   SESSION_END: 'session_end',
+  TITLE_UPDATE: 'title_update',
 };
 
 /**

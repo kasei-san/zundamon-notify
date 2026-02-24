@@ -16,5 +16,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onShortcutAlwaysAllow: (callback) => ipcRenderer.on('shortcut-always-allow', () => callback()),
   // マルチセッション用
   onSessionInfo: (callback) => ipcRenderer.on('session-info', (_event, data) => callback(data)),
+  onTitleUpdate: (callback) => ipcRenderer.on('title-update', (_event, data) => callback(data)),
   onSetActiveState: (callback) => ipcRenderer.on('set-active-state', (_event, data) => callback(data)),
 });

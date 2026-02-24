@@ -202,6 +202,18 @@ class SocketServer {
         break;
       }
 
+      case MESSAGE_TYPES.TITLE_UPDATE: {
+        // セッションが存在する場合のみタイトル更新（存在しなければ無視）
+        if (this.sessions.has(sessionId)) {
+          this.sessions.get(sessionId).lastMessageAt = Date.now();
+          if (this.callbacks.onMessage) {
+            this.callbacks.onMessage(sessionId, 'title-update', { title: msg.title });
+          }
+        }
+        socket.end();
+        break;
+      }
+
       case MESSAGE_TYPES.SESSION_END: {
         // セッション削除
         const endSession = this.sessions.get(sessionId);
