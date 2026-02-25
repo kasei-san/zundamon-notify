@@ -46,7 +46,7 @@ function createSessionWindow(sessionId, { pid, cwd }) {
 
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
   const winWidth = 400;
-  const winHeight = 550;
+  const winHeight = 340; // コンパクト（キャラクターのみ）。吹き出し表示時にrendererからexpand-windowで拡張
 
   // ウィンドウ位置: 既存ウィンドウ数に応じてオフセット
   const offset = windows.size * 60;
@@ -180,6 +180,32 @@ function setupIPC() {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win && !win.isDestroyed()) {
       win.setPosition(x, y);
+    }
+  });
+
+  // ウィンドウを上方向に拡張（吹き出し表示用）
+  const EXPANDED_WIN_HEIGHT = 550;
+  const COMPACT_WIN_HEIGHT = 340;
+
+  ipcMain.on('expand-window', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win && !win.isDestroyed()) {
+      const bounds = win.getBounds();
+      const diff = EXPANDED_WIN_HEIGHT - bounds.height;
+      if (diff > 0) {
+        win.setBounds({ x: bounds.x, y: bounds.y - diff, width: bounds.width, height: EXPANDED_WIN_HEIGHT });
+      }
+    }
+  });
+
+  ipcMain.on('compact-window', (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win && !win.isDestroyed()) {
+      const bounds = win.getBounds();
+      const diff = bounds.height - COMPACT_WIN_HEIGHT;
+      if (diff > 0) {
+        win.setBounds({ x: bounds.x, y: bounds.y + diff, width: bounds.width, height: COMPACT_WIN_HEIGHT });
+      }
     }
   });
 
