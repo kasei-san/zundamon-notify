@@ -3,7 +3,6 @@ const bubbleText = document.getElementById('bubble-text');
 const bubbleButtons = document.getElementById('bubble-buttons');
 const btnAllow = document.getElementById('btn-allow');
 const btnDeny = document.getElementById('btn-deny');
-const btnClose = document.getElementById('btn-close');
 const btnAlwaysAllow = document.getElementById('btn-always-allow');
 const character = document.getElementById('character');
 const appEl = document.getElementById('app');
@@ -57,10 +56,8 @@ function showBubble(text, showButtons = false, { html = false } = {}) {
 
   if (showButtons) {
     bubbleButtons.classList.remove('hidden');
-    btnClose.classList.add('hidden');
   } else {
     bubbleButtons.classList.add('hidden');
-    btnClose.classList.remove('hidden');
   }
 
   bubble.classList.remove('hidden');
@@ -228,11 +225,6 @@ btnDeny.addEventListener('click', () => {
   }
 });
 
-// 閉じるボタン
-btnClose.addEventListener('click', () => {
-  hideBubble();
-});
-
 // コンソール側で許可/拒否された場合、該当IDをキューから除去
 window.electronAPI.onPermissionDismissed((data) => {
   const wasFirst = permissionQueue.length > 0 && permissionQueue[0].id === data.id;
@@ -333,6 +325,11 @@ function setupDrag() {
     character.classList.remove('dragging');
   });
 }
+
+// 右クリックメニューからの吹き出し非表示
+window.electronAPI.onHideBubble(() => {
+  hideBubble();
+});
 
 // 右クリックコンテキストメニュー
 character.addEventListener('contextmenu', (e) => {
