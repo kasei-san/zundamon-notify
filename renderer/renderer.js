@@ -78,7 +78,6 @@ function showBubble(text, showButtons = false, { html = false } = {}) {
     bubbleText.textContent = text;
   }
   bubbleVisible = true;
-  window.electronAPI.expandWindow();
 
   if (showButtons) {
     bubbleButtons.classList.remove('hidden');
@@ -87,6 +86,14 @@ function showBubble(text, showButtons = false, { html = false } = {}) {
   }
 
   bubble.classList.remove('hidden');
+
+  // DOM描画後に吹き出しの実際の高さを測ってウィンドウを拡張
+  requestAnimationFrame(() => {
+    const bubbleHeight = bubble.offsetHeight;
+    // 吹き出しはbottom:310pxに配置。必要なウィンドウ高さ = 310 + 吹き出し高さ + マージン
+    const neededHeight = 310 + bubbleHeight + 20;
+    window.electronAPI.expandWindow(neededHeight);
+  });
 
   // 吹き出し表示中は作業中スピナーを止める
   pauseStatusSpinner();

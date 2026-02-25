@@ -187,13 +187,14 @@ function setupIPC() {
   const EXPANDED_WIN_HEIGHT = 550;
   const COMPACT_WIN_HEIGHT = 340;
 
-  ipcMain.on('expand-window', (event) => {
+  ipcMain.on('expand-window', (event, targetHeight) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win && !win.isDestroyed()) {
       const bounds = win.getBounds();
-      const diff = EXPANDED_WIN_HEIGHT - bounds.height;
+      const expandTo = Math.min(targetHeight || EXPANDED_WIN_HEIGHT, EXPANDED_WIN_HEIGHT);
+      const diff = expandTo - bounds.height;
       if (diff > 0) {
-        win.setBounds({ x: bounds.x, y: bounds.y - diff, width: bounds.width, height: EXPANDED_WIN_HEIGHT });
+        win.setBounds({ x: bounds.x, y: bounds.y - diff, width: bounds.width, height: expandTo });
       }
     }
   });

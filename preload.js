@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onShortcutAlwaysAllow: (callback) => ipcRenderer.on('shortcut-always-allow', () => callback()),
   onHideBubble: (callback) => ipcRenderer.on('hide-bubble', () => callback()),
   // 吹き出し表示時のウィンドウ拡張/縮小
-  expandWindow: () => ipcRenderer.send('expand-window'),
+  expandWindow: (targetHeight) => ipcRenderer.send('expand-window', targetHeight),
   compactWindow: () => ipcRenderer.send('compact-window'),
   // マルチセッション用
   onSessionInfo: (callback) => ipcRenderer.on('session-info', (_event, data) => callback(data)),
