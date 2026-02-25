@@ -46,6 +46,11 @@ function setupMouseForwarding() {
 
   // mousemoveでチェック（forward: trueでmousemoveが来る）
   document.addEventListener('mousemove', (e) => {
+    // ドラッグ中はマウスイベントを常に受け取る（ウィンドウ移動の非同期ズレで途切れるのを防止）
+    if (isDragging) {
+      window.electronAPI.setIgnoreMouse(false);
+      return;
+    }
     const isOverCharacter = isPointInElement(e, character);
     const isOverBubble = bubbleVisible && isPointInElement(e, bubble);
     if (isOverCharacter || isOverBubble) {
@@ -73,6 +78,7 @@ function showBubble(text, showButtons = false, { html = false } = {}) {
     bubbleText.textContent = text;
   }
   bubbleVisible = true;
+  window.electronAPI.expandWindow();
 
   if (showButtons) {
     bubbleButtons.classList.remove('hidden');
@@ -89,6 +95,7 @@ function showBubble(text, showButtons = false, { html = false } = {}) {
 function hideBubble() {
   bubble.classList.add('hidden');
   bubbleVisible = false;
+  window.electronAPI.compactWindow();
   btnAlwaysAllow.classList.add('hidden');
 
   // クリックスルーを復活
@@ -323,8 +330,8 @@ window.electronAPI.onShortcutAlwaysAllow(() => {
 });
 
 // ドラッグ&ドロップによるウィンドウ移動
+let isDragging = false;
 function setupDrag() {
-  let isDragging = false;
   let startMouseX = 0;
   let startMouseY = 0;
   let startWinX = 0;
