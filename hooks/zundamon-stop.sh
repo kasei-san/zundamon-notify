@@ -40,7 +40,7 @@ if last_msg:
     codex_path = shutil.which("codex")
     if codex_path:
         try:
-            prompt = f"以下の文章を20文字以内のずんだもん口調（〜のだ）で要約して。余計な説明は不要で、要約文だけ出力して: '{last_msg}'"
+            prompt = f"以下の文章を15文字以内のずんだもん口調（〜のだ）で要約して。余計な説明は不要で、要約文だけ出力して: '{last_msg}'"
             result = subprocess.run(
                 ["perl", "-e", "alarm 10; exec @ARGV", codex_path, "exec", "--ephemeral", "-"],
                 input=prompt, capture_output=True, text=True, timeout=15

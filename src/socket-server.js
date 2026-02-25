@@ -181,6 +181,15 @@ class SocketServer {
         break;
       }
 
+      case MESSAGE_TYPES.STATUS_UPDATE: {
+        this.getOrCreateSession(sessionId, msg);
+        if (this.callbacks.onMessage) {
+          this.callbacks.onMessage(sessionId, 'status-update', msg);
+        }
+        socket.end();
+        break;
+      }
+
       case MESSAGE_TYPES.DISMISS: {
         // セッションが未作成なら作成する（UserPromptSubmitでのセッション開始検知）
         this.getOrCreateSession(sessionId, msg);

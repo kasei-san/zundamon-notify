@@ -15,9 +15,15 @@
         <button id="btn-always-allow" class="btn btn-always-allow hidden">次回から聞かないのだ<kbd class="shortcut-key">⌃⇧A</kbd></button>
       </div>
     </div>
-    <!-- キャラクター -->
-    <div id="character" class="draggable">
-      <img src="../assets/zundamon.png" alt="ずんだもん" draggable="false">
+    <!-- キャラクター + 足元テキスト -->
+    <div id="character-container">
+      <div id="character" class="draggable">
+        <img src="../assets/zundamon.png" alt="ずんだもん" draggable="false">
+      </div>
+      <div id="status-text" class="hidden">
+        <span class="status-spinner"></span>
+        <span id="status-label"></span>
+      </div>
     </div>
   </div>
   <script src="renderer.js"></script>
