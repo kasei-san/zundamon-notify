@@ -2,3 +2,5 @@ node_modules/
 
 # install.sh がテンプレートから生成するファイル
 scripts/zundamon-notify
+
+.claude/settings.local.json
