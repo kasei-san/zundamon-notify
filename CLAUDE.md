@@ -50,7 +50,7 @@ echo '{"type":"notification","id":"test-3","message":"旧形式テスト"}' | so
 吹き出し UI の表示制御。Permission はキューベースで複数同時保持し順次表示（待ち件数表示付き）。許可/拒否ボタン付き（590秒タイムアウト）。`permission_suggestions` がある場合は「次回から聞かないのだ」ボタンを表示。`AskUserQuestion`（`tool_name === 'AskUserQuestion'`）の場合は質問テキストと選択肢を番号付きリスト（label + description）で表示し、許可/拒否ボタンは非表示（ユーザーはターミナルで回答、dismiss hookで自動消去）。CSS変数で色テーマを適用。キャラクターのドラッグ&ドロップによるウィンドウ移動、右クリックコンテキストメニュー（吹き出しを消す・再起動・このずんだもんを終了・終了）に対応。
 
 ### Hook スクリプト (`hooks/`)
-全スクリプトでstdin JSONから `session_id`/`cwd` を抽出し、`$PPID` を pid としてUDSメッセージに含める。`zundamon-permission.sh` は Python3 で安全にパースし socat でブロッキング送信（590秒タイムアウト）。シグナルトラップ（`trap 'kill 0' TERM INT`）でコンソール側操作時にsocat子プロセスの孤立を防止。`zundamon-notify.sh` は permission_prompt 由来の通知をフィルタリング。`zundamon-dismiss.sh`/`zundamon-pre-dismiss.sh` はセッション単位でdismiss（`zundamon-pre-dismiss.sh` は `cwd`/`pid` も含めて送信し、セッション作成のトリガーにもなる）。`zundamon-session-end.sh` は SessionEnd hook でセッション終了を通知。`~/.claude/settings.json` に SessionEnd hook を登録済み。
+全スクリプトでstdin JSONから `session_id`/`cwd`/`transcript_path` を抽出し、`$PPID` を pid としてUDSメッセージに含める。`zundamon-permission.sh` は Python3 で安全にパースし socat でブロッキング送信（590秒タイムアウト）。シグナルトラップ（`trap 'kill 0' TERM INT`）でコンソール側操作時にsocat子プロセスの孤立を防止。`zundamon-notify.sh` は permission_prompt 由来の通知をフィルタリング。`zundamon-dismiss.sh`/`zundamon-pre-dismiss.sh` はセッション単位でdismiss（`zundamon-pre-dismiss.sh` は `cwd`/`pid`/`transcript_path` も含めて送信し、セッション作成のトリガーにもなる）。`zundamon-session-end.sh` は SessionEnd hook でセッション終了を通知。`~/.claude/settings.json` に SessionEnd hook を登録済み。
 
 ## 参考プロジェクト
 
