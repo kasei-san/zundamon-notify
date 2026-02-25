@@ -64,6 +64,7 @@ function createSessionWindow(sessionId, { pid, cwd }) {
     skipTaskbar: true,
     hasShadow: false,
     resizable: false,
+    icon: path.join(__dirname, 'assets', 'icon.icns'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -295,6 +296,13 @@ function startSessionGC() {
 }
 
 app.whenReady().then(() => {
+  // アプリ名とアイコンを設定
+  app.setName('ずんだもん通知');
+  const iconPath = path.join(__dirname, 'assets', 'icon.icns');
+  if (process.platform === 'darwin') {
+    app.dock.setIcon(iconPath);
+  }
+
   setupIPC();
   startSocketServer();
   startSessionGC();

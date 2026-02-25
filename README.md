@@ -227,7 +227,8 @@ zundamon-notify/
 │   └── protocol.js            # メッセージプロトコル定義
 ├── assets/
 │   ├── zundamon.png           # 立ち絵 PNG（196x300px、緑・オリジナル）
-│   └── zundamon-{color}.png   # 色違い画像（scripts/generate-variants.py で生成）
+│   ├── zundamon-{color}.png   # 色違い画像（scripts/generate-variants.py で生成）
+│   └── icon.icns              # macOS アプリアイコン（zundamon.png から生成）
 ├── hooks/
 │   ├── zundamon-permission.sh # PermissionRequest hook（ブロッキング）
 │   ├── zundamon-notify.sh     # Notification hook

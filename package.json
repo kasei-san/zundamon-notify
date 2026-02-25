@@ -1,5 +1,6 @@
 {
   "name": "zundamon-notify",
+  "productName": "ずんだもん通知",
   "version": "1.0.0",
   "description": "ずんだもん通知デスクトップアプリ",
   "main": "main.js",
