@@ -9,9 +9,22 @@ const statusText = document.getElementById('status-text');
 const appEl = document.getElementById('app');
 
 // 足元ステータステキスト更新
+const statusLabel = document.getElementById('status-label');
+const statusSpinner = statusText.querySelector('.status-spinner');
+
 function updateStatusText(text) {
-  statusText.textContent = text;
+  statusLabel.textContent = text;
   statusText.classList.remove('hidden');
+  statusSpinner.classList.remove('hidden');
+}
+
+function pauseStatusSpinner() {
+  statusSpinner.classList.add('hidden');
+}
+
+function hideStatusText() {
+  statusText.classList.add('hidden');
+  statusLabel.textContent = '';
 }
 
 // HTMLエスケープ
@@ -68,6 +81,9 @@ function showBubble(text, showButtons = false, { html = false } = {}) {
   }
 
   bubble.classList.remove('hidden');
+
+  // 吹き出し表示中は作業中スピナーを止める
+  pauseStatusSpinner();
 }
 
 function hideBubble() {
@@ -168,7 +184,6 @@ window.electronAPI.onSessionInfo((info) => {
 // Permission Request
 window.electronAPI.onPermissionRequest((data) => {
   console.log('[DEBUG] onPermissionRequest:', JSON.stringify({ id: data.id, tool_name: data.tool_name, queueBefore: permissionQueue.length }));
-  updateStatusText(`🔧 ${data.tool_name || '実行中'}`);
   permissionQueue.push(data);
   displayCurrentPermission();
 });
@@ -176,16 +191,20 @@ window.electronAPI.onPermissionRequest((data) => {
 // Notification
 window.electronAPI.onNotification((data) => {
   console.log('[DEBUG] onNotification:', JSON.stringify({ message: data.message, queueLength: permissionQueue.length, bubbleVisible }));
-  updateStatusText(data.message || '');
   // Permissionキューがある場合はNotificationを表示しない（キューを維持）
   if (permissionQueue.length > 0) return;
   showBubble(data.message || '通知なのだ！');
 });
 
+// Status Update (足元テキスト: PreToolUseから送信)
+window.electronAPI.onStatusUpdate((data) => {
+  console.log('[DEBUG] onStatusUpdate:', JSON.stringify({ message: data.message }));
+  updateStatusText(data.message || '');
+});
+
 // Stop (入力待ち)
 window.electronAPI.onStop((data) => {
   console.log('[DEBUG] onStop:', JSON.stringify({ message: data.message, queueLength: permissionQueue.length, bubbleVisible }));
-  updateStatusText(data.message || '入力を待っているのだ！');
   // Permissionキューがある場合はStopを表示しない（キューを維持）
   if (permissionQueue.length > 0) return;
   showBubble(data.message || '入力を待っているのだ！');
@@ -255,8 +274,6 @@ window.electronAPI.onPermissionDismissed((data) => {
 window.electronAPI.onDismissBubble(() => {
   console.log('[DEBUG] onDismissBubble:', JSON.stringify({ queueBefore: permissionQueue.map((item) => item.id), bubbleVisible }));
   permissionQueue = [];
-  statusText.classList.add('hidden');
-  statusText.textContent = '';
   if (bubbleVisible) {
     hideBubble();
   }
