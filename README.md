@@ -6,14 +6,16 @@ Claude Code で作業中、PermissionRequest（許可確認）や入力待ちが
 
 ## 動作イメージ
 
+<img src="docs/screenshot.jpeg" alt="ずんだもん通知のスクリーンショット" width="400">
+
 - 画面右下にずんだもんが常駐
 - Claude Code が許可を求めると、ずんだもんが吹き出しで通知
 - 「許可するのだ！」「ダメなのだ！」ボタンで操作
 - ずんだもんをドラッグして好きな位置に移動可能
-- ずんだもんを右クリックでメニュー表示（再起動・このずんだもんを終了・終了）
+- ずんだもんを右クリックでメニュー表示（吹き出しを消す・再起動・このずんだもんを終了・終了）
 - グローバルショートカットで他のアプリがアクティブでも許可/拒否可能
 - マルチエージェント実行時も複数の Permission リクエストをキューで管理し順次表示
-- **複数 Claude Code セッション対応**: セッションごとに独立したずんだもんウィンドウを表示、色とプロジェクト名で識別
+- **複数 Claude Code セッション対応**: セッションごとに独立したずんだもんウィンドウを表示、色で識別
 
 ## 必要なもの
 
@@ -159,9 +161,9 @@ npm start
 
 | イベント | 動作 |
 |---------|------|
-| **PermissionRequest** | 吹き出しにツール名・コマンドを表示。「許可するのだ！」「ダメなのだ！」ボタンで応答 |
-| **Stop**（入力待ち） | 「入力を待っているのだ！」と吹き出し表示（×ボタンで閉じる） |
-| **Notification** | 通知メッセージを吹き出し表示（×ボタンで閉じる） |
+| **PermissionRequest** | 吹き出しにツール名・コマンドを表示。「許可するのだ！」「ダメなのだ！」ボタンで応答。AskUserQuestion の場合は質問と選択肢を表示（ボタンなし、ターミナルで回答） |
+| **Stop**（入力待ち） | 「入力を待っているのだ！」と吹き出し表示（右クリックメニューで閉じる） |
+| **Notification** | 通知メッセージを吹き出し表示（右クリックメニューで閉じる） |
 | **UserPromptSubmit** | ユーザー入力時に残っている吹き出し（Stop等）を自動dismiss |
 | **PreToolUse** | ツール実行開始時に残っている吹き出し（Permission等）を自動dismiss |
 | **PostToolUse** | ツール実行完了時に残っている吹き出しを自動dismiss |
@@ -173,8 +175,7 @@ npm start
 
 複数の Claude Code セッションを同時起動すると、各セッションに対応するずんだもんが自動的に表示されます。
 
-- **セッションタイトル**: 各ずんだもんの足元に、セッションの最初のユーザーメッセージがタイトルとして表示されます（フォールバック: cwdのディレクトリ名）
-- **色分け**: セッションごとに異なる色（green/blue/purple/orange/pink）が割り当てられ、ずんだもんの色相が変わります
+- **色分け**: セッションごとに異なる色（green/blue/purple/orange/pink/red/cyan/yellow/lavender/teal の10色）の事前生成画像が割り当てられます
 - **最前面制御**: Permission 待ちのキュー先頭セッションのずんだもんが最前面に表示されます
 - **ショートカット**: グローバルショートカットはキュー先頭のセッションに反応します
 - **自動クリーンアップ**: セッション終了時（SessionEnd hook）または5分間メッセージなし（タイムアウトGC）でずんだもんが自動的に消えます
@@ -225,7 +226,10 @@ zundamon-notify/
 │   ├── socket-server.js       # UDS サーバー（セッション単位管理）
 │   └── protocol.js            # メッセージプロトコル定義
 ├── assets/
-│   └── zundamon.png           # 立ち絵 PNG（196x300px）
+│   ├── zundamon.png           # 立ち絵 PNG（196x300px、緑・オリジナル）
+│   ├── zundamon-{color}.png   # 色違い画像（scripts/generate-variants.py で生成）
+│   ├── icon.png               # アプリアイコン PNG（512×512、顔部分）
+│   └── icon.icns              # macOS アプリアイコン（icon.png から生成）
 ├── hooks/
 │   ├── zundamon-permission.sh # PermissionRequest hook（ブロッキング）
 │   ├── zundamon-notify.sh     # Notification hook
@@ -241,7 +245,9 @@ zundamon-notify/
 ├── com.zundamon.notify.plist   # LaunchAgent 定義（テンプレート）
 └── scripts/
     ├── install.sh             # インストールスクリプト（LaunchAgent 登録込み）
-    └── uninstall.sh           # アンインストールスクリプト
+    ├── uninstall.sh           # アンインストールスクリプト
+    ├── generate-variants.py   # 色違いずんだもん画像生成スクリプト（Python + Pillow）
+    └── patch-electron-plist.sh # Electron.app の Info.plist パッチ（アプリ名・アイコン設定）
 ```
 
 ## Claude Code スキル
@@ -289,7 +295,12 @@ echo '{"type":"session_end","id":"end","session_id":"test-session"}' \
 
 ## 立ち絵の差し替え
 
-`assets/zundamon.png` を差し替えれば、別の画像に変更できます。
+`assets/zundamon.png` を差し替えた後、色違い画像を再生成してください：
+
+```bash
+pip install Pillow  # 未インストールの場合
+python3 scripts/generate-variants.py
+```
 
 ## 素材のライセンス
 

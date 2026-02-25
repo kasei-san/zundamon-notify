@@ -28,8 +28,7 @@ req = {
     'session_id': data.get('session_id', 'default'),
     'cwd': data.get('cwd', ''),
     'pid': os.getppid(),
-    'message': message,
-    'transcript_path': data.get('transcript_path', '')
+    'message': message
 }
 print(json.dumps(req))
 " 2>/dev/null)

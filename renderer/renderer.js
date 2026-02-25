@@ -3,11 +3,16 @@ const bubbleText = document.getElementById('bubble-text');
 const bubbleButtons = document.getElementById('bubble-buttons');
 const btnAllow = document.getElementById('btn-allow');
 const btnDeny = document.getElementById('btn-deny');
-const btnClose = document.getElementById('btn-close');
 const btnAlwaysAllow = document.getElementById('btn-always-allow');
 const character = document.getElementById('character');
-const projectName = document.getElementById('project-name');
 const appEl = document.getElementById('app');
+
+// HTMLエスケープ
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
 
 // Permission リクエストのキュー（複数同時対応）
 let permissionQueue = [];
@@ -15,26 +20,17 @@ let bubbleVisible = false;
 
 // マウスがUI要素に乗ったらクリックスルーを解除、離れたら復活
 function setupMouseForwarding() {
-  document.addEventListener('mouseenter', () => {
-    // 吹き出し表示中はクリックスルーを解除
-    if (bubbleVisible) {
-      window.electronAPI.setIgnoreMouse(false);
-    }
-  });
-
   document.addEventListener('mouseleave', () => {
     window.electronAPI.setIgnoreMouse(true);
   });
 
-  // mousemoveでもチェック（forward: trueでmousemoveが来る）
+  // mousemoveでチェック（forward: trueでmousemoveが来る）
   document.addEventListener('mousemove', (e) => {
     const isOverCharacter = isPointInElement(e, character);
     const isOverBubble = bubbleVisible && isPointInElement(e, bubble);
-    const isOverProjectName = projectName.textContent && isPointInElement(e, projectName);
-
-    if (isOverCharacter || isOverBubble || isOverProjectName) {
+    if (isOverCharacter || isOverBubble) {
       window.electronAPI.setIgnoreMouse(false);
-    } else if (!bubbleVisible) {
+    } else {
       window.electronAPI.setIgnoreMouse(true);
     }
   });
@@ -50,22 +46,21 @@ function isPointInElement(e, el) {
   );
 }
 
-function showBubble(text, showButtons = false) {
-  bubbleText.textContent = text;
+function showBubble(text, showButtons = false, { html = false } = {}) {
+  if (html) {
+    bubbleText.innerHTML = text;
+  } else {
+    bubbleText.textContent = text;
+  }
   bubbleVisible = true;
 
   if (showButtons) {
     bubbleButtons.classList.remove('hidden');
-    btnClose.classList.add('hidden');
   } else {
     bubbleButtons.classList.add('hidden');
-    btnClose.classList.remove('hidden');
   }
 
   bubble.classList.remove('hidden');
-
-  // 吹き出し表示中はクリックスルーを解除
-  window.electronAPI.setIgnoreMouse(false);
 }
 
 function hideBubble() {
@@ -89,6 +84,25 @@ function displayCurrentPermission() {
 
   const data = permissionQueue[0];
   const toolName = data.tool_name || 'Unknown';
+
+  // AskUserQuestion の場合は専用表示
+  if (toolName === 'AskUserQuestion' && data.tool_input && data.tool_input.questions && data.tool_input.questions.length > 0) {
+    const q = data.tool_input.questions[0];
+    const questionText = escapeHtml(q.question || '');
+    let optionsHtml = '';
+    if (q.options && q.options.length > 0) {
+      const items = q.options.map((opt, i) => {
+        const label = escapeHtml(opt.label || '');
+        const desc = opt.description ? escapeHtml(opt.description) : '';
+        return `<li><span class="ask-option-number">${i + 1}.</span> <span class="ask-option-label">${label}</span>${desc ? `<span class="ask-option-desc"> - ${desc}</span>` : ''}</li>`;
+      }).join('');
+      optionsHtml = `<ul class="ask-options-list">${items}</ul>`;
+    }
+    btnAlwaysAllow.classList.add('hidden');
+    showBubble(`<div class="ask-question">❓ ${questionText}</div>${optionsHtml}`, false, { html: true });
+    return;
+  }
+
   let description = data.description || '';
 
   if (data.tool_input && data.tool_input.command) {
@@ -126,14 +140,6 @@ function getCurrentRequest() {
 window.electronAPI.onSessionInfo((info) => {
   console.log('Session info received:', info);
 
-  // セッションタイトルを表示（タイトルがなければcwdのディレクトリ名）
-  if (info.title) {
-    projectName.textContent = info.title;
-  } else if (info.cwd) {
-    const dirName = info.cwd.split('/').filter(Boolean).pop() || '';
-    projectName.textContent = dirName;
-  }
-
   // 色テーマ適用
   if (info.colorTheme) {
     const theme = info.colorTheme;
@@ -142,11 +148,11 @@ window.electronAPI.onSessionInfo((info) => {
     appEl.style.setProperty('--theme-shadow', theme.shadow.replace('@@', '0.4'));
     appEl.style.setProperty('--theme-shadow-light', theme.shadow.replace('@@', '0.2'));
 
-    // ずんだもんの色相を変更
-    if (theme.hueRotate) {
+    // ずんだもんの色違い画像を適用
+    if (theme.image) {
       const img = character.querySelector('img');
       if (img) {
-        img.style.filter = `hue-rotate(${theme.hueRotate}deg)`;
+        img.src = `../assets/${theme.image}`;
       }
     }
   }
@@ -154,12 +160,14 @@ window.electronAPI.onSessionInfo((info) => {
 
 // Permission Request
 window.electronAPI.onPermissionRequest((data) => {
+  console.log('[DEBUG] onPermissionRequest:', JSON.stringify({ id: data.id, tool_name: data.tool_name, queueBefore: permissionQueue.length }));
   permissionQueue.push(data);
   displayCurrentPermission();
 });
 
 // Notification
 window.electronAPI.onNotification((data) => {
+  console.log('[DEBUG] onNotification:', JSON.stringify({ message: data.message, queueLength: permissionQueue.length, bubbleVisible }));
   // Permissionキューがある場合はNotificationを表示しない（キューを維持）
   if (permissionQueue.length > 0) return;
   showBubble(data.message || '通知なのだ！');
@@ -167,6 +175,7 @@ window.electronAPI.onNotification((data) => {
 
 // Stop (入力待ち)
 window.electronAPI.onStop((data) => {
+  console.log('[DEBUG] onStop:', JSON.stringify({ message: data.message, queueLength: permissionQueue.length, bubbleVisible }));
   // Permissionキューがある場合はStopを表示しない（キューを維持）
   if (permissionQueue.length > 0) return;
   showBubble(data.message || '入力を待っているのだ！');
@@ -216,15 +225,12 @@ btnDeny.addEventListener('click', () => {
   }
 });
 
-// 閉じるボタン
-btnClose.addEventListener('click', () => {
-  hideBubble();
-});
-
 // コンソール側で許可/拒否された場合、該当IDをキューから除去
 window.electronAPI.onPermissionDismissed((data) => {
   const wasFirst = permissionQueue.length > 0 && permissionQueue[0].id === data.id;
+  const queueBefore = permissionQueue.map((item) => item.id);
   permissionQueue = permissionQueue.filter((item) => item.id !== data.id);
+  console.log('[DEBUG] onPermissionDismissed:', JSON.stringify({ dismissedId: data.id, wasFirst, queueBefore, queueAfter: permissionQueue.map((item) => item.id) }));
 
   if (wasFirst) {
     // 先頭が除去された場合、次を表示
@@ -237,6 +243,7 @@ window.electronAPI.onPermissionDismissed((data) => {
 
 // dismiss メッセージで吹き出しを閉じる（キュー全クリア）
 window.electronAPI.onDismissBubble(() => {
+  console.log('[DEBUG] onDismissBubble:', JSON.stringify({ queueBefore: permissionQueue.map((item) => item.id), bubbleVisible }));
   permissionQueue = [];
   if (bubbleVisible) {
     hideBubble();
@@ -318,6 +325,11 @@ function setupDrag() {
     character.classList.remove('dragging');
   });
 }
+
+// 右クリックメニューからの吹き出し非表示
+window.electronAPI.onHideBubble(() => {
+  hideBubble();
+});
 
 // 右クリックコンテキストメニュー
 character.addEventListener('contextmenu', (e) => {

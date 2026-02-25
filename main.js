@@ -1,7 +1,6 @@
 const { app, BrowserWindow, screen, ipcMain, Menu, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const readline = require('readline');
 const { SocketServer } = require('./src/socket-server');
 
 // セッション別ウィンドウ管理: session_id -> BrowserWindow
@@ -9,67 +8,23 @@ const windows = new Map();
 let socketServer;
 
 // 色テーマパレット（セッションごとに順番に割り当て）
-// hueRotate: ずんだもん画像のhue-rotate角度（緑基準）
+// image: 事前生成済みの色違いずんだもん画像ファイル名
 const COLOR_THEMES = [
-  { name: 'green',  primary: '#5b9a2f', hoverBg: '#f0f7e8', shadow: 'rgba(91, 154, 47, @@)', hueRotate: 0 },
-  { name: 'blue',   primary: '#2f7a9a', hoverBg: '#e8f2f7', shadow: 'rgba(47, 122, 154, @@)', hueRotate: 180 },
-  { name: 'purple', primary: '#7a2f9a', hoverBg: '#f3e8f7', shadow: 'rgba(122, 47, 154, @@)', hueRotate: 270 },
-  { name: 'orange', primary: '#9a6f2f', hoverBg: '#f7f0e8', shadow: 'rgba(154, 111, 47, @@)', hueRotate: 60 },
-  { name: 'pink',   primary: '#9a2f5b', hoverBg: '#f7e8ef', shadow: 'rgba(154, 47, 91, @@)', hueRotate: 310 },
+  { name: 'green',    primary: '#5b9a2f', hoverBg: '#f0f7e8', shadow: 'rgba(91, 154, 47, @@)',  image: 'zundamon.png' },
+  { name: 'blue',     primary: '#2f7a9a', hoverBg: '#e8f2f7', shadow: 'rgba(47, 122, 154, @@)', image: 'zundamon-blue.png' },
+  { name: 'purple',   primary: '#7a2f9a', hoverBg: '#f3e8f7', shadow: 'rgba(122, 47, 154, @@)', image: 'zundamon-purple.png' },
+  { name: 'orange',   primary: '#9a6f2f', hoverBg: '#f7f0e8', shadow: 'rgba(154, 111, 47, @@)', image: 'zundamon-orange.png' },
+  { name: 'pink',     primary: '#9a2f5b', hoverBg: '#f7e8ef', shadow: 'rgba(154, 47, 91, @@)',  image: 'zundamon-pink.png' },
+  { name: 'red',      primary: '#9a2f2f', hoverBg: '#f7e8e8', shadow: 'rgba(154, 47, 47, @@)',  image: 'zundamon-red.png' },
+  { name: 'cyan',     primary: '#2f9a8a', hoverBg: '#e8f7f4', shadow: 'rgba(47, 154, 138, @@)', image: 'zundamon-cyan.png' },
+  { name: 'yellow',   primary: '#9a8a2f', hoverBg: '#f7f5e8', shadow: 'rgba(154, 138, 47, @@)', image: 'zundamon-yellow.png' },
+  { name: 'lavender', primary: '#5b2f9a', hoverBg: '#ede8f7', shadow: 'rgba(91, 47, 154, @@)',  image: 'zundamon-lavender.png' },
+  { name: 'teal',     primary: '#2f9a6f', hoverBg: '#e8f7f0', shadow: 'rgba(47, 154, 111, @@)', image: 'zundamon-teal.png' },
 ];
 let nextThemeIndex = 0;
 
 // ショートカットFIFO: Permission到着順でセッションを管理
 const permissionFIFO = [];
-
-/**
- * transcript JSONLからセッションタイトル（最初のユーザーメッセージ）を抽出する
- * @returns {Promise<string>} タイトル文字列（フォールバック: cwdのディレクトリ名）
- */
-async function extractSessionTitle(transcriptPath, cwd) {
-  const fallback = cwd ? cwd.split('/').filter(Boolean).pop() || '' : '';
-
-  if (!transcriptPath || !fs.existsSync(transcriptPath)) {
-    return fallback;
-  }
-
-  try {
-    const rl = readline.createInterface({
-      input: fs.createReadStream(transcriptPath),
-      crlfDelay: Infinity,
-    });
-
-    for await (const line of rl) {
-      try {
-        const entry = JSON.parse(line);
-        if (entry.type === 'user' && entry.message) {
-          const content = entry.message.content;
-          let text = '';
-          if (typeof content === 'string') {
-            text = content;
-          } else if (Array.isArray(content)) {
-            const textBlock = content.find((c) => c.type === 'text');
-            if (textBlock) text = textBlock.text;
-          }
-          text = text.trim();
-          if (text) {
-            rl.close();
-            // URLを除去し、最初の行のみ、50文字以内に切り詰め
-            let firstLine = text.split('\n')[0].replace(/https?:\/\/\S+/g, '').trim();
-            if (!firstLine) firstLine = text.split('\n')[0].trim();
-            return firstLine.length > 50 ? firstLine.substring(0, 50) + '...' : firstLine;
-          }
-        }
-      } catch {
-        // JSONパースエラーは無視
-      }
-    }
-  } catch {
-    // ファイル読み取りエラー
-  }
-
-  return fallback;
-}
 
 /**
  * event.senderからsession_idを逆引きする
@@ -86,12 +41,12 @@ function getSessionIdFromSender(sender) {
 /**
  * セッション用ウィンドウを生成する
  */
-function createSessionWindow(sessionId, { pid, cwd, transcriptPath }) {
+function createSessionWindow(sessionId, { pid, cwd }) {
   if (windows.has(sessionId)) return windows.get(sessionId);
 
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
   const winWidth = 400;
-  const winHeight = 550; // プロジェクト名表示分を追加
+  const winHeight = 550;
 
   // ウィンドウ位置: 既存ウィンドウ数に応じてオフセット
   const offset = windows.size * 60;
@@ -109,6 +64,7 @@ function createSessionWindow(sessionId, { pid, cwd, transcriptPath }) {
     skipTaskbar: true,
     hasShadow: false,
     resizable: false,
+    icon: path.join(__dirname, 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -132,9 +88,8 @@ function createSessionWindow(sessionId, { pid, cwd, transcriptPath }) {
   const theme = COLOR_THEMES[nextThemeIndex % COLOR_THEMES.length];
   nextThemeIndex++;
 
-  win.webContents.on('did-finish-load', async () => {
-    const title = await extractSessionTitle(transcriptPath, cwd);
-    win.webContents.send('session-info', { sessionId, pid, cwd, colorTheme: theme, title });
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.send('session-info', { sessionId, pid, cwd, colorTheme: theme });
   });
 
   win.on('closed', () => {
@@ -243,6 +198,15 @@ function setupIPC() {
 
     const template = [
       {
+        label: '吹き出しを消す',
+        click: () => {
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('hide-bubble');
+          }
+        },
+      },
+      { type: 'separator' },
+      {
         label: '再起動',
         click: () => {
           app.relaunch();
@@ -341,6 +305,13 @@ function startSessionGC() {
 }
 
 app.whenReady().then(() => {
+  // アプリ名とアイコンを設定
+  app.setName('ずんだもん通知');
+  const iconPath = path.join(__dirname, 'assets', 'icon.png');
+  if (process.platform === 'darwin') {
+    app.dock.setIcon(iconPath);
+  }
+
   setupIPC();
   startSocketServer();
   startSessionGC();

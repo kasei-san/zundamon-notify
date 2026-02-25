@@ -34,13 +34,12 @@ class SocketServer {
       const sessionInfo = {
         pid: msg.pid || null,
         cwd: msg.cwd || '',
-        transcriptPath: msg.transcript_path || '',
         pendingConnections: new Map(),
         lastMessageAt: Date.now(),
       };
       this.sessions.set(sessionId, sessionInfo);
       if (this.callbacks.onSessionStart) {
-        this.callbacks.onSessionStart(sessionId, { pid: sessionInfo.pid, cwd: sessionInfo.cwd, transcriptPath: sessionInfo.transcriptPath });
+        this.callbacks.onSessionStart(sessionId, { pid: sessionInfo.pid, cwd: sessionInfo.cwd });
       }
     }
     const session = this.sessions.get(sessionId);
@@ -122,6 +121,7 @@ class SocketServer {
         for (const [sessionId, session] of this.sessions) {
           for (const [id, s] of session.pendingConnections) {
             if (s === socket) {
+              console.log(`[DEBUG][SOCKET_CLOSE] Socket closed for pending permission id=${id}, session=${sessionId}`);
               session.pendingConnections.delete(id);
               if (this.callbacks.onMessage) {
                 this.callbacks.onMessage(sessionId, 'permission-dismissed', { id });
@@ -187,7 +187,10 @@ class SocketServer {
         // 対象セッションのpendingのみクリア
         const session = this.sessions.get(sessionId);
         if (session) {
+          const pendingIds = [...session.pendingConnections.keys()];
+          console.log(`[DEBUG][DISMISS] sessionId=${sessionId}, pendingConnections=${JSON.stringify(pendingIds)}`);
           for (const [id, s] of session.pendingConnections) {
+            console.log(`[DEBUG][DISMISS] Dismissing permission id=${id} for session=${sessionId}`);
             if (this.callbacks.onMessage) {
               this.callbacks.onMessage(sessionId, 'permission-dismissed', { id });
             }
@@ -196,6 +199,7 @@ class SocketServer {
           session.pendingConnections.clear();
         }
         // Notification/Stopの吹き出しも閉じる
+        console.log(`[DEBUG][DISMISS] Sending dismiss-bubble for session=${sessionId}`);
         if (this.callbacks.onMessage) {
           this.callbacks.onMessage(sessionId, 'dismiss-bubble', {});
         }
