@@ -8,6 +8,7 @@ const MESSAGE_TYPES = {
   NOTIFICATION: 'notification',
   STOP: 'stop',
   DISMISS: 'dismiss',
+  STATUS_UPDATE: 'status_update',
   SESSION_END: 'session_end',
 };
 
