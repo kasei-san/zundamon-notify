@@ -6,7 +6,7 @@ Claude Code で作業中、PermissionRequest（許可確認）や入力待ちが
 
 ## 動作イメージ
 
-<img src="docs/screenshot.jpeg" alt="ずんだもん通知のスクリーンショット" width="400">
+<img src="docs/screenshot.png" alt="ずんだもん通知のスクリーンショット" width="600">
 
 - 画面右下にずんだもんが常駐
 - Claude Code が許可を求めると、ずんだもんが吹き出しで通知
