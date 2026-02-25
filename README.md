@@ -228,7 +228,8 @@ zundamon-notify/
 ├── assets/
 │   ├── zundamon.png           # 立ち絵 PNG（196x300px、緑・オリジナル）
 │   ├── zundamon-{color}.png   # 色違い画像（scripts/generate-variants.py で生成）
-│   └── icon.icns              # macOS アプリアイコン（zundamon.png から生成）
+│   ├── icon.png               # アプリアイコン PNG（512×512、顔部分）
+│   └── icon.icns              # macOS アプリアイコン（icon.png から生成）
 ├── hooks/
 │   ├── zundamon-permission.sh # PermissionRequest hook（ブロッキング）
 │   ├── zundamon-notify.sh     # Notification hook
@@ -245,7 +246,8 @@ zundamon-notify/
 └── scripts/
     ├── install.sh             # インストールスクリプト（LaunchAgent 登録込み）
     ├── uninstall.sh           # アンインストールスクリプト
-    └── generate-variants.py   # 色違いずんだもん画像生成スクリプト（Python + Pillow）
+    ├── generate-variants.py   # 色違いずんだもん画像生成スクリプト（Python + Pillow）
+    └── patch-electron-plist.sh # Electron.app の Info.plist パッチ（アプリ名・アイコン設定）
 ```
 
 ## Claude Code スキル
