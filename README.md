@@ -34,7 +34,12 @@ npm install
 
 # 3. socat をインストール（未インストールの場合）
 brew install socat
+
+# 4. (推奨) codex CLI をインストール
+npm install -g @openai/codex
 ```
+
+> **codex CLI のインストールを推奨します**: Stop hook（入力待ち通知）で、Claude Code の最後の出力をずんだもん口調で30文字以内に要約して吹き出し表示します。codex CLI がない場合は固定メッセージ「入力を待っているのだ！」のみの表示になります。
 
 ### Claude Code hooks の設定
 
