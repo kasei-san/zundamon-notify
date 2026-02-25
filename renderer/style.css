@@ -219,3 +219,22 @@ html, body {
   color: #888;
   font-size: 12px;
 }
+
+/* 足元ステータステキスト */
+#status-text {
+  text-align: center;
+  background: rgba(0, 0, 0, 0.85);
+  color: var(--theme-primary);
+  font-size: 12px;
+  font-weight: bold;
+  padding: 4px 12px;
+  border-radius: 8px;
+  max-width: 350px;
+  align-self: flex-end;
+  margin-right: 5px;
+  word-break: break-all;
+}
+
+#status-text.hidden {
+  display: none;
+}

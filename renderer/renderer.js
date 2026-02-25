@@ -5,7 +5,14 @@ const btnAllow = document.getElementById('btn-allow');
 const btnDeny = document.getElementById('btn-deny');
 const btnAlwaysAllow = document.getElementById('btn-always-allow');
 const character = document.getElementById('character');
+const statusText = document.getElementById('status-text');
 const appEl = document.getElementById('app');
+
+// 足元ステータステキスト更新
+function updateStatusText(text) {
+  statusText.textContent = text;
+  statusText.classList.remove('hidden');
+}
 
 // HTMLエスケープ
 function escapeHtml(str) {
@@ -161,6 +168,7 @@ window.electronAPI.onSessionInfo((info) => {
 // Permission Request
 window.electronAPI.onPermissionRequest((data) => {
   console.log('[DEBUG] onPermissionRequest:', JSON.stringify({ id: data.id, tool_name: data.tool_name, queueBefore: permissionQueue.length }));
+  updateStatusText(`🔧 ${data.tool_name || '実行中'}`);
   permissionQueue.push(data);
   displayCurrentPermission();
 });
@@ -168,6 +176,7 @@ window.electronAPI.onPermissionRequest((data) => {
 // Notification
 window.electronAPI.onNotification((data) => {
   console.log('[DEBUG] onNotification:', JSON.stringify({ message: data.message, queueLength: permissionQueue.length, bubbleVisible }));
+  updateStatusText(data.message || '');
   // Permissionキューがある場合はNotificationを表示しない（キューを維持）
   if (permissionQueue.length > 0) return;
   showBubble(data.message || '通知なのだ！');
@@ -176,6 +185,7 @@ window.electronAPI.onNotification((data) => {
 // Stop (入力待ち)
 window.electronAPI.onStop((data) => {
   console.log('[DEBUG] onStop:', JSON.stringify({ message: data.message, queueLength: permissionQueue.length, bubbleVisible }));
+  updateStatusText(data.message || '入力を待っているのだ！');
   // Permissionキューがある場合はStopを表示しない（キューを維持）
   if (permissionQueue.length > 0) return;
   showBubble(data.message || '入力を待っているのだ！');
@@ -245,6 +255,8 @@ window.electronAPI.onPermissionDismissed((data) => {
 window.electronAPI.onDismissBubble(() => {
   console.log('[DEBUG] onDismissBubble:', JSON.stringify({ queueBefore: permissionQueue.map((item) => item.id), bubbleVisible }));
   permissionQueue = [];
+  statusText.classList.add('hidden');
+  statusText.textContent = '';
   if (bubbleVisible) {
     hideBubble();
   }
