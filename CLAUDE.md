@@ -61,7 +61,7 @@ echo '{"type":"notification","id":"test-3","message":"旧形式テスト"}' | so
 ### 動作確認時のアプリ再起動
 コード変更後に動作確認が必要な場合は、ユーザーに確認せずずんだもんアプリを再起動すること：
 ```bash
-pkill -f "electron \." 2>/dev/null; sleep 1; npm start &
+./scripts/restart.sh
 ```
 
 ### コミット後のPR作成
