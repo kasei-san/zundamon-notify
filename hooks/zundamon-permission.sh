@@ -5,6 +5,10 @@
 SOCKET_PATH="/tmp/zundamon-claude.sock"
 TIMEOUT=590  # Claude Codeの600秒タイムアウトより短く
 
+# シグナルハンドラ: プロセスグループごとkillしてsocat子プロセスの孤立を防ぐ
+# コンソール側で許可/拒否された場合、Claude Codeがこのスクリプトにシグナルを送る
+trap 'kill 0 2>/dev/null; exit 0' TERM INT
+
 # ソケットが存在しなければフォールバック（アプリ未起動）
 if [ ! -S "$SOCKET_PATH" ]; then
   exit 0

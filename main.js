@@ -198,6 +198,15 @@ function setupIPC() {
 
     const template = [
       {
+        label: '吹き出しを消す',
+        click: () => {
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('hide-bubble');
+          }
+        },
+      },
+      { type: 'separator' },
+      {
         label: '再起動',
         click: () => {
           app.relaunch();
