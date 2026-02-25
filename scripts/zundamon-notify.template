@@ -7,4 +7,5 @@ cd "$SCRIPT_DIR"
 
 # __NODE_BIN_DIR__ は install.sh が埋め込む（LaunchAgent はログインシェルを通さないため）
 export PATH="__NODE_BIN_DIR__:/usr/local/bin:/opt/homebrew/bin:$PATH"
+bash "$SCRIPT_DIR/scripts/patch-electron-plist.sh"
 exec npx electron .
