@@ -238,7 +238,8 @@ zundamon-notify/
 │   ├── icon.png               # アプリアイコン PNG（512×512、顔部分）
 │   └── icon.icns              # macOS アプリアイコン（icon.png から生成）
 ├── hooks/
-│   ├── zundamon-permission.sh # PermissionRequest hook（ブロッキング）
+│   ├── auto-approve.py        # codexによる自動リスク判定（Permission自動許可）
+│   ├── zundamon-permission.sh # PermissionRequest hook（ブロッキング、自動判定付き）
 │   ├── zundamon-notify.sh     # Notification hook
 │   ├── zundamon-stop.sh       # Stop hook（入力待ち通知）
 │   ├── zundamon-pre-dismiss.sh # UserPromptSubmit/PreToolUse hook（吹き出しdismiss）
@@ -277,6 +278,50 @@ zundamon-notify/
 5. PR を作成して issue とリンク（`Closes #番号`）
 6. issue に完了コメントを追加
 7. ユーザーに報告
+
+## 自動リスク判定（Permission 自動許可）
+
+codex CLI を使って Permission リクエストのリスクを自動判定し、安全なリクエスト（ファイル読み取り、git status 等）を自動許可する機能です。デフォルトは無効で、設定ファイルで明示的に有効化する必要があります。
+
+### セットアップ
+
+1. codex CLI をインストール（未インストールの場合）：
+```bash
+npm install -g @openai/codex
+```
+
+2. 設定ファイルを作成：
+```bash
+mkdir -p ~/.config/zundamon-notify
+cat > ~/.config/zundamon-notify/config.json << 'EOF'
+{
+  "auto_approve": {
+    "enabled": true,
+    "log_file": "~/.config/zundamon-notify/auto-approve.log"
+  }
+}
+EOF
+```
+
+### 設定項目
+
+| キー | 型 | デフォルト | 説明 |
+|------|-----|-----------|------|
+| `auto_approve.enabled` | boolean | `false` | 自動判定の有効/無効 |
+| `auto_approve.log_file` | string | `~/.config/zundamon-notify/auto-approve.log` | 自動許可ログのパス |
+
+### 動作
+
+- **SAFE 判定**: ファイル読み取り、git 参照系、ls/pwd、コード編集、テスト実行など → 自動許可（Electron 通知なし）
+- **RISK 判定**: AWS 破壊的操作、terraform apply/destroy、git push --force、rm -rf、sudo 等 → 従来通り吹き出し表示
+- **エラー/タイムアウト**: 従来通り吹き出し表示（安全側にフォールバック）
+
+### ログ
+
+自動許可されたリクエストは JSON Lines 形式でログに記録されます：
+```jsonl
+{"timestamp":"2026-02-26T10:30:00+00:00","tool_name":"Bash","description":"ls -la","cwd":"/Users/you/work/project","session_id":"session-abc"}
+```
 
 ## 動作確認（手動テスト）
 

@@ -14,9 +14,12 @@ if [ ! -S "$SOCKET_PATH" ]; then
   exit 0
 fi
 
+# stdinを変数に保存（Python3とauto-approve.pyの両方で使うため）
+INPUT=$(cat)
+
 # stdinからhookデータを読み取り、Pythonで安全にパースしてUDSリクエストJSON生成
 # シェル変数展開を経由しないのでエスケープ問題が起きない
-REQUEST=$(python3 -c "
+REQUEST=$(echo "$INPUT" | python3 -c "
 import sys, json, uuid, os
 
 data = json.load(sys.stdin)
@@ -41,6 +44,14 @@ print(json.dumps(req))
 
 # REQUESTが空ならフォールバック
 if [ -z "$REQUEST" ]; then
+  exit 0
+fi
+
+# codexによる自動リスク判定（設定で有効化されている場合のみ）
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+AUTO_RESULT=$(ZUNDAMON_HOOK_DATA="$INPUT" python3 "$SCRIPT_DIR/auto-approve.py" 2>/dev/null)
+if [ "$AUTO_RESULT" = "SAFE" ]; then
+  echo '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}'
   exit 0
 fi
 
