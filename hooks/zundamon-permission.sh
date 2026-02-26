@@ -50,7 +50,28 @@ fi
 # codexによる自動リスク判定（設定で有効化されている場合のみ）
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 AUTO_RESULT=$(ZUNDAMON_HOOK_DATA="$INPUT" python3 "$SCRIPT_DIR/auto-approve.py" 2>/dev/null)
-if [ "$AUTO_RESULT" = "SAFE" ]; then
+AUTO_JUDGMENT=$(echo "$AUTO_RESULT" | cut -f1)
+AUTO_SUMMARY=$(echo "$AUTO_RESULT" | cut -f2-)
+if [ "$AUTO_JUDGMENT" = "SAFE" ]; then
+  # 概要を吹き出しでnotification表示（session_idとcwdをREQUESTから取得）
+  if [ -n "$AUTO_SUMMARY" ]; then
+    NOTIF=$(export AUTO_APPROVE_SUMMARY="$AUTO_SUMMARY"; echo "$REQUEST" | python3 -c "
+import sys, json, uuid, os
+req = json.load(sys.stdin)
+summary = os.environ.get('AUTO_APPROVE_SUMMARY', '')
+notif = {
+    'type': 'notification',
+    'id': str(uuid.uuid4()),
+    'session_id': req.get('session_id', 'default'),
+    'cwd': req.get('cwd', ''),
+    'message': '✅ ' + summary
+}
+print(json.dumps(notif, ensure_ascii=False))
+" 2>/dev/null)
+    if [ -n "$NOTIF" ]; then
+      echo "$NOTIF" | socat -t 2 - UNIX-CONNECT:"$SOCKET_PATH" 2>/dev/null &
+    fi
+  fi
   echo '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}'
   exit 0
 fi

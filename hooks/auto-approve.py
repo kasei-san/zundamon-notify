@@ -4,7 +4,7 @@ codex CLIによるPermissionリクエスト自動リスク判定。
 環境変数 ZUNDAMON_HOOK_DATA から hook の生JSONを受け取り、
 codex でリスク判定を行う。
 
-exit 0 + stdout "SAFE" → 自動許可
+exit 0 + stdout "SAFE\t概要テキスト" → 自動許可（概要を吹き出し表示）
 exit 1 → 従来フロー（Electron通知）に進む
 """
 
@@ -43,7 +43,10 @@ def build_prompt(tool_name, tool_input, cwd, description):
     """codex に渡すリスク判定プロンプトを生成。"""
     tool_input_str = json.dumps(tool_input, ensure_ascii=False)[:500]
     return f"""You are a security risk assessor for CLI tool executions.
-Evaluate the following tool execution and respond with EXACTLY one word: "SAFE" or "RISK".
+Evaluate the following tool execution and respond in this EXACT format:
+SAFE: <20-30文字の日本語でコマンド概要>
+or
+RISK: <20-30文字の日本語でコマンド概要>
 
 Rules for RISK:
 - AWS/GCP/Azure destructive operations (delete, terminate, destroy, etc.)
@@ -66,19 +69,24 @@ Rules for SAFE:
 
 When in doubt, respond "RISK".
 
+概要はずんだもん口調（〜のだ）で書いてください。例:
+- SAFE: ファイル一覧を確認するのだ
+- SAFE: gitの差分を見るのだ
+- RISK: ファイルを全削除するのだ
+
 Tool: {tool_name}
 Input: {tool_input_str}
 Working directory: {cwd}
 Description: {description}
 
-Your assessment (one word only):"""
+Your assessment (SAFE or RISK with summary):"""
 
 
 def judge_with_codex(prompt):
-    """codex CLIでリスク判定を実行。タイムアウトやエラー時はNone。"""
+    """codex CLIでリスク判定を実行。(判定, 概要)のタプルを返す。エラー時は(None, None)。"""
     codex_path = shutil.which("codex")
     if not codex_path:
-        return None
+        return None, None
 
     try:
         result = subprocess.run(
@@ -90,16 +98,18 @@ def judge_with_codex(prompt):
         )
         if result.returncode == 0:
             output = result.stdout.strip()
-            # 最終行から判定結果を取得
+            # 最終行から判定結果を取得（形式: "SAFE: 概要テキスト" or "RISK: 概要テキスト"）
             lines = output.split("\n")
-            last_line = lines[-1].strip().upper() if lines else ""
-            if last_line == "SAFE":
-                return "SAFE"
-            elif last_line == "RISK":
-                return "RISK"
-        return None
+            last_line = lines[-1].strip() if lines else ""
+            if last_line.upper().startswith("SAFE"):
+                summary = last_line.split(":", 1)[1].strip() if ":" in last_line else ""
+                return "SAFE", summary
+            elif last_line.upper().startswith("RISK"):
+                summary = last_line.split(":", 1)[1].strip() if ":" in last_line else ""
+                return "RISK", summary
+        return None, None
     except Exception:
-        return None
+        return None, None
 
 
 def main():
@@ -135,9 +145,9 @@ def main():
 
     # codexでリスク判定
     prompt = build_prompt(tool_name, tool_input, cwd, description)
-    result = judge_with_codex(prompt)
+    judgment, summary = judge_with_codex(prompt)
 
-    if result == "SAFE":
+    if judgment == "SAFE":
         # ログ記録
         log_path_str = auto_approve.get("log_file", "")
         if log_path_str:
@@ -149,11 +159,13 @@ def main():
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "tool_name": tool_name,
             "description": description,
+            "summary": summary,
             "cwd": cwd,
             "session_id": session_id,
         })
 
-        print("SAFE")
+        # タブ区切りで判定と概要を出力
+        print(f"SAFE\t{summary}")
         sys.exit(0)
 
     # RISK or エラー → 従来フローへ
