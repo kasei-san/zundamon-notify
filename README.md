@@ -16,6 +16,9 @@ Claude Code で作業中、PermissionRequest（許可確認）や入力待ちが
 - グローバルショートカットで他のアプリがアクティブでも許可/拒否可能
 - マルチエージェント実行時も複数の Permission リクエストをキューで管理し順次表示
 - **複数 Claude Code セッション対応**: セッションごとに独立したずんだもんウィンドウを表示、色で識別
+- **codex CLI 連携（オプション）**: codex CLI がインストールされている場合、以下の追加機能が有効になります
+  - **入力待ち要約**: Claude Code が入力待ちになった時、最後の出力をずんだもん口調で30文字以内に要約して吹き出し表示
+  - **Permission 自動リスク判定**: codex にコマンドのリスクを判定させ、安全なコマンド（ファイル読み取り、git status 等）を自動許可。RISK 判定時は吹き出しにリスク理由を表示。自動許可時は「✅ コマンドの概要」を吹き出しで簡易表示（設定で有効化が必要、[詳細](#自動リスク判定permission-自動許可)）
 
 ## 必要なもの
 
@@ -39,7 +42,7 @@ brew install socat
 npm install -g @openai/codex
 ```
 
-> **codex CLI のインストールを推奨します**: Stop hook（入力待ち通知）で、Claude Code の最後の出力をずんだもん口調で30文字以内に要約して吹き出し表示します。codex CLI がない場合は固定メッセージ「入力を待っているのだ！」のみの表示になります。
+> **codex CLI のインストールを推奨します**: (1) Stop hook（入力待ち通知）で、Claude Code の最後の出力をずんだもん口調で30文字以内に要約して吹き出し表示します。(2) Permission の自動リスク判定・自動許可機能が利用可能になります（[設定が必要](#permission-自動許可の設定オプション)）。codex CLI がない場合、(1) は固定メッセージ「入力を待っているのだ！」のみ、(2) は無効になります。
 
 ### Claude Code hooks の設定
 
@@ -128,6 +131,27 @@ npm install -g @openai/codex
 ```
 
 > 既存の hooks 設定がある場合は、`hooks` 配列にエントリを追加する形でマージしてください。
+
+### Permission 自動許可の設定（オプション）
+
+codex CLI を使って Permission リクエストのリスクを自動判定し、安全なコマンドを自動許可する機能を有効化できます。**デフォルトは無効**です。
+
+```bash
+# 1. codex CLI をインストール
+npm install -g @openai/codex
+
+# 2. 設定ファイルを作成
+mkdir -p ~/.config/zundamon-notify
+cat > ~/.config/zundamon-notify/config.json << 'EOF'
+{
+  "auto_approve": {
+    "enabled": true
+  }
+}
+EOF
+```
+
+> **⚠️ リスクについて**: この機能は codex CLI（LLM）にリスク判定を委ねるため、**誤判定の可能性があります**。安全なコマンドが RISK と判定される（偽陽性）場合は従来通り手動確認になるだけで問題ありませんが、危険なコマンドが SAFE と判定される（偽陰性）場合はユーザー確認なしに実行されます。判定に迷う場合は RISK 側に倒す設計ですが、**本番環境や機密データを扱う作業では無効のままにすることを推奨します**。自動許可されたコマンドは `~/.config/zundamon-notify/auto-approve.log` に記録されるので、定期的に確認してください。
 
 ## 使い方
 
@@ -281,46 +305,32 @@ zundamon-notify/
 
 ## 自動リスク判定（Permission 自動許可）
 
-codex CLI を使って Permission リクエストのリスクを自動判定し、安全なリクエスト（ファイル読み取り、git status 等）を自動許可する機能です。デフォルトは無効で、設定ファイルで明示的に有効化する必要があります。
-
-### セットアップ
-
-1. codex CLI をインストール（未インストールの場合）：
-```bash
-npm install -g @openai/codex
-```
-
-2. 設定ファイルを作成：
-```bash
-mkdir -p ~/.config/zundamon-notify
-cat > ~/.config/zundamon-notify/config.json << 'EOF'
-{
-  "auto_approve": {
-    "enabled": true,
-    "log_file": "~/.config/zundamon-notify/auto-approve.log"
-  }
-}
-EOF
-```
+codex CLI を使って Permission リクエストのリスクを自動判定し、安全なリクエスト（ファイル読み取り、git status 等）を自動許可する機能です。セットアップは[こちら](#permission-自動許可の設定オプション)を参照してください。
 
 ### 設定項目
+
+パス: `~/.config/zundamon-notify/config.json`
 
 | キー | 型 | デフォルト | 説明 |
 |------|-----|-----------|------|
 | `auto_approve.enabled` | boolean | `false` | 自動判定の有効/無効 |
 | `auto_approve.log_file` | string | `~/.config/zundamon-notify/auto-approve.log` | 自動許可ログのパス |
 
-### 動作
+### 判定基準
 
-- **SAFE 判定**: ファイル読み取り、git 参照系、ls/pwd、コード編集、テスト実行など → 自動許可 + コマンド概要を吹き出しで簡易表示（✅プレフィックス付き）
-- **RISK 判定**: AWS 破壊的操作、terraform apply/destroy、git push --force、rm -rf、sudo 等 → 従来通り吹き出し表示
-- **エラー/タイムアウト**: 従来通り吹き出し表示（安全側にフォールバック）
+codex CLI にツール名・コマンド内容・作業ディレクトリを渡し、「SAFE」か「RISK」を判定させます。判定に迷う場合は RISK 側に倒します。
+
+| 判定 | 吹き出し表示 | 例 |
+|------|-------------|-----|
+| **SAFE** | `✅ コマンドの概要`（自動許可、ボタンなし） | ファイル読み取り（cat, head）、git 参照系（status, log, diff）、ls/pwd、コード編集（Edit, Write）、テスト実行、lint/format |
+| **RISK** | `⚠️ リスクの理由` + 従来の Y/N ボタン | AWS 破壊的操作、terraform apply/destroy、git push --force、rm -rf、sudo、DB DROP/TRUNCATE |
+| **エラー/タイムアウト** | `⚠️ 判定できなかったのだ` + 従来の Y/N ボタン | codex の応答遅延、ネットワークエラー等 |
 
 ### ログ
 
-自動許可されたリクエストは JSON Lines 形式でログに記録されます：
+自動許可されたコマンドは JSON Lines 形式でログに記録されます（RISK 判定・手動許可はログ対象外）：
 ```jsonl
-{"timestamp":"2026-02-26T10:30:00+00:00","tool_name":"Bash","description":"ls -la","cwd":"/Users/you/work/project","session_id":"session-abc"}
+{"timestamp":"2026-02-26T10:30:00+00:00","tool_name":"Bash","description":"ls -la","summary":"ファイル一覧を確認するのだ","cwd":"/Users/you/work/project","session_id":"session-abc"}
 ```
 
 ## 動作確認（手動テスト）
