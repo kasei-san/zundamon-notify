@@ -168,7 +168,11 @@ def main():
         print(f"SAFE\t{summary}")
         sys.exit(0)
 
-    # RISK or エラー → 従来フローへ
+    # RISK or タイムアウト → 概要を出力して従来フローへ（吹き出しに理由表示用）
+    if judgment == "RISK" and summary:
+        print(f"RISK\t{summary}")
+    else:
+        print("RISK\t判定できなかったのだ")
     sys.exit(1)
 
 

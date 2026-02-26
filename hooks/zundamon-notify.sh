@@ -18,9 +18,12 @@ import sys, json, uuid, os
 data = json.load(sys.stdin)
 message = data.get('message', '') or 'Claude Codeからの通知なのだ'
 
+# 不要な通知をフィルタリング
 # permission_prompt由来の通知はPermissionRequest hookで処理済みのためスキップ
-if 'Claude needs your permission' in message:
-    sys.exit(1)
+# Stop hook由来の入力待ち通知はStop hookで処理済みのためスキップ
+for skip in ['Claude needs your permission', 'Claude is waiting for your input']:
+    if skip in message:
+        sys.exit(1)
 
 req = {
     'type': 'notification',

@@ -37,6 +37,7 @@ function escapeHtml(str) {
 // Permission リクエストのキュー（複数同時対応）
 let permissionQueue = [];
 let bubbleVisible = false;
+let isAutoApproveBubble = false; // ✅自動許可の吹き出しはdismissで消さない
 
 // マウスがUI要素に乗ったらクリックスルーを解除、離れたら復活
 function setupMouseForwarding() {
@@ -143,12 +144,20 @@ function displayCurrentPermission() {
   let description = data.description || '';
 
   if (data.tool_input && data.tool_input.command) {
-    description = data.tool_input.command;
+    // descriptionに⚠️リスク理由が含まれる場合はそれを保持
+    const riskPrefix = description.startsWith('⚠️') ? description.split('\n')[0] + '\n' : '';
+    description = riskPrefix + data.tool_input.command;
   }
 
-  // 長すぎる場合は切り詰め
-  if (description.length > 120) {
-    description = description.substring(0, 120) + '...';
+  // 長すぎる場合は切り詰め（⚠️行は保持）
+  if (description.length > 150) {
+    const lines = description.split('\n');
+    if (lines.length > 1 && lines[0].startsWith('⚠️')) {
+      // ⚠️行 + コマンド切り詰め
+      description = lines[0] + '\n' + lines.slice(1).join('\n').substring(0, 100) + '...';
+    } else {
+      description = description.substring(0, 120) + '...';
+    }
   }
 
   // 待ち件数の表示
@@ -198,6 +207,7 @@ window.electronAPI.onSessionInfo((info) => {
 // Permission Request
 window.electronAPI.onPermissionRequest((data) => {
   console.log('[DEBUG] onPermissionRequest:', JSON.stringify({ id: data.id, tool_name: data.tool_name, queueBefore: permissionQueue.length }));
+  isAutoApproveBubble = false;
   permissionQueue.push(data);
   displayCurrentPermission();
 });
@@ -207,7 +217,10 @@ window.electronAPI.onNotification((data) => {
   console.log('[DEBUG] onNotification:', JSON.stringify({ message: data.message, queueLength: permissionQueue.length, bubbleVisible }));
   // Permissionキューがある場合はNotificationを表示しない（キューを維持）
   if (permissionQueue.length > 0) return;
-  showBubble(data.message || '通知なのだ！');
+  const message = data.message || '通知なのだ！';
+  // ✅自動許可の通知はdismissで消さないフラグを立てる
+  isAutoApproveBubble = message.startsWith('✅');
+  showBubble(message);
 });
 
 // Status Update (足元テキスト: PreToolUseから送信)
@@ -221,6 +234,7 @@ window.electronAPI.onStop((data) => {
   console.log('[DEBUG] onStop:', JSON.stringify({ message: data.message, queueLength: permissionQueue.length, bubbleVisible }));
   // Permissionキューがある場合はStopを表示しない（キューを維持）
   if (permissionQueue.length > 0) return;
+  isAutoApproveBubble = false;
   showBubble(data.message || '入力を待っているのだ！');
 });
 
@@ -285,10 +299,11 @@ window.electronAPI.onPermissionDismissed((data) => {
 });
 
 // dismiss メッセージで吹き出しを閉じる（キュー全クリア）
+// ✅自動許可の吹き出しはdismissでは消さない（次の吹き出しで上書きされる）
 window.electronAPI.onDismissBubble(() => {
-  console.log('[DEBUG] onDismissBubble:', JSON.stringify({ queueBefore: permissionQueue.map((item) => item.id), bubbleVisible }));
+  console.log('[DEBUG] onDismissBubble:', JSON.stringify({ queueBefore: permissionQueue.map((item) => item.id), bubbleVisible, isAutoApproveBubble }));
   permissionQueue = [];
-  if (bubbleVisible) {
+  if (bubbleVisible && !isAutoApproveBubble) {
     hideBubble();
   }
 });
