@@ -145,7 +145,11 @@ mkdir -p ~/.config/zundamon-notify
 cat > ~/.config/zundamon-notify/config.json << 'EOF'
 {
   "auto_approve": {
-    "enabled": true
+    "enabled": true,
+    "custom_rules": [
+      "gh コマンドによるGitHubのread系操作（gh issue list, gh pr view等）は常にSAFE",
+      "npm test, npm run lint は常にSAFE"
+    ]
   }
 }
 EOF
@@ -314,6 +318,7 @@ codex CLI を使って Permission リクエストのリスクを自動判定し�
 | キー | 型 | デフォルト | 説明 |
 |------|-----|-----------|------|
 | `auto_approve.enabled` | boolean | `false` | 自動判定の有効/無効 |
+| `auto_approve.custom_rules` | string[] | `[]` | ユーザー定義の判定ルール（既存ルールより優先） |
 | `auto_approve.log_file` | string | `~/.config/zundamon-notify/auto-approve.log` | 自動許可ログのパス |
 
 ### 判定基準
