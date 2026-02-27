@@ -39,9 +39,18 @@ def write_log(log_path, entry):
         pass
 
 
-def build_prompt(tool_name, tool_input, cwd, description):
+def build_prompt(tool_name, tool_input, cwd, description, custom_rules=None):
     """codex に渡すリスク判定プロンプトを生成。"""
     tool_input_str = json.dumps(tool_input, ensure_ascii=False)[:500]
+
+    custom_rules_section = ""
+    if custom_rules:
+        rules_text = "\n".join(f"- {rule}" for rule in custom_rules)
+        custom_rules_section = f"""
+
+Additional user-defined rules (these take priority over the rules above):
+{rules_text}"""
+
     return f"""You are a security risk assessor for CLI tool executions.
 Evaluate the following tool execution and respond in this EXACT format:
 SAFE: <20-30文字の日本語でコマンド概要>
@@ -67,7 +76,7 @@ Rules for SAFE:
 - npm test, npm run build
 - echo, printf (local only)
 
-When in doubt, respond "RISK".
+When in doubt, respond "RISK".{custom_rules_section}
 
 概要はずんだもん口調（〜のだ）で書いてください。例:
 - SAFE: ファイル一覧を確認するのだ
@@ -143,8 +152,13 @@ def main():
     description = tool_input.get("command", "") or tool_input.get("description", "") or str(tool_input)[:200]
     session_id = data.get("session_id", "default")
 
+    # カスタムルールの取得
+    custom_rules = auto_approve.get("custom_rules", [])
+    if isinstance(custom_rules, str):
+        custom_rules = [custom_rules]
+
     # codexでリスク判定
-    prompt = build_prompt(tool_name, tool_input, cwd, description)
+    prompt = build_prompt(tool_name, tool_input, cwd, description, custom_rules)
     judgment, summary = judge_with_codex(prompt)
 
     if judgment == "SAFE":
