@@ -59,7 +59,7 @@ description = tool_input.get('command', '') or tool_input.get('description', '')
 
 risk_summary = os.environ.get('RISK_SUMMARY', '')
 if risk_summary:
-    description = '⚠️ ' + risk_summary + '\n' + description
+    description = risk_summary + '\n' + description
 
 req = {
     'type': 'permission_request',

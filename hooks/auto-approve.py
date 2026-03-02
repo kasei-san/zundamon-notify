@@ -107,15 +107,21 @@ def judge_with_codex(prompt):
         )
         if result.returncode == 0:
             output = result.stdout.strip()
-            # 最終行から判定結果を取得（形式: "SAFE: 概要テキスト" or "RISK: 概要テキスト"）
+            # 全行をスキャンしてSAFE/RISKで始まる行を探す（最後に見つかったものを採用）
             lines = output.split("\n")
-            last_line = lines[-1].strip() if lines else ""
-            if last_line.upper().startswith("SAFE"):
-                summary = last_line.split(":", 1)[1].strip() if ":" in last_line else ""
-                return "SAFE", summary
-            elif last_line.upper().startswith("RISK"):
-                summary = last_line.split(":", 1)[1].strip() if ":" in last_line else ""
-                return "RISK", summary
+            judgment = None
+            summary = ""
+            for line in lines:
+                stripped = line.strip()
+                upper = stripped.upper()
+                if upper.startswith("SAFE"):
+                    judgment = "SAFE"
+                    summary = stripped.split(":", 1)[1].strip() if ":" in stripped else stripped[4:].lstrip()
+                elif upper.startswith("RISK"):
+                    judgment = "RISK"
+                    summary = stripped.split(":", 1)[1].strip() if ":" in stripped else stripped[4:].lstrip()
+            if judgment:
+                return judgment, summary
         return None, None
     except Exception:
         return None, None
@@ -161,32 +167,35 @@ def main():
     prompt = build_prompt(tool_name, tool_input, cwd, description, custom_rules)
     judgment, summary = judge_with_codex(prompt)
 
+    # ログ記録（SAFE/RISK両方）
+    log_path_str = auto_approve.get("log_file", "")
+    if log_path_str:
+        log_path = Path(log_path_str).expanduser()
+    else:
+        log_path = DEFAULT_LOG_PATH
+
+    log_entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "judgment": judgment or "UNKNOWN",
+        "tool_name": tool_name,
+        "description": description,
+        "summary": summary or "",
+        "cwd": cwd,
+        "session_id": session_id,
+    }
+    write_log(log_path, log_entry)
+
     if judgment == "SAFE":
-        # ログ記録
-        log_path_str = auto_approve.get("log_file", "")
-        if log_path_str:
-            log_path = Path(log_path_str).expanduser()
-        else:
-            log_path = DEFAULT_LOG_PATH
-
-        write_log(log_path, {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "tool_name": tool_name,
-            "description": description,
-            "summary": summary,
-            "cwd": cwd,
-            "session_id": session_id,
-        })
-
         # タブ区切りで判定と概要を出力
         print(f"SAFE\t{summary}")
         sys.exit(0)
 
-    # RISK or タイムアウト → 概要を出力して従来フローへ（吹き出しに理由表示用）
-    if judgment == "RISK" and summary:
-        print(f"RISK\t{summary}")
+    # RISK → 概要を出力して従来フローへ（吹き出しに理由表示用）
+    if judgment == "RISK":
+        print(f"RISK\t⚠️RISK: {summary}" if summary else "RISK\t⚠️RISK判定なのだ")
     else:
-        print("RISK\t判定できなかったのだ")
+        # UNKNOWN: codexがタイムアウトまたは形式エラー
+        print("UNKNOWN\t❓判定不能なのだ")
     sys.exit(1)
 
 
