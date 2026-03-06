@@ -1,5 +1,7 @@
 # Claude Codeの通知、ずんだもんにやらせてみた - zundamon-notify の紹介
 
+リポジトリはこちらで公開しています: [kasei-san/zundamon-notify](https://github.com/kasei-san/zundamon-notify)
+
 ## はじめに
 
 [前回の記事](https://techblog.lclco.com/entry/2026/03/06/121928)では、Claude Code を軸にした一日の業務フロー（朝の立ち上げからセッション引き継ぎまで）を紹介しました。その中の「hookによる自動化の積み重ね」セクションで、hook を使った gh コマンドの操作履歴記録や PR のブラウザ自動オープンなどを紹介しましたが、今回はこの **hook の仕組みをさらに活用**して作った、ちょっと変わったデスクトップ通知アプリ「**zundamon-notify**」を紹介します。
