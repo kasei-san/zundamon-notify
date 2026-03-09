@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-codex CLIによるPermissionリクエスト自動リスク判定。
+Permissionリクエスト自動リスク判定（2段構成）。
 環境変数 ZUNDAMON_HOOK_DATA から hook の生JSONを受け取り、
-codex でリスク判定を行う。
+1. settings.json の allow/deny パターンで決定論的に判定（高速・無料）
+2. パターンで判定できない場合のみ codex CLI でLLM判定
 
 exit 0 + stdout "SAFE\t概要テキスト" → 自動許可（概要を吹き出し表示）
 exit 1 → 従来フロー（Electron通知）に進む
 """
 
+import fnmatch
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -115,6 +118,239 @@ def update_error_streak(judgment):
             "自動許可が動いていない可能性があるのだ。"
             "デバッグログ: ~/.config/zundamon-notify/auto-approve-debug.log"
         )
+
+
+# --- settings.json パターンマッチング（決定論的判定） ---
+
+# シェルビルトイン: 単独で実行されても安全なコマンド
+SHELL_BUILTINS = frozenset([
+    "cd", "echo", "printf", "export", "unset", "set", "shopt",
+    "local", "declare", "readonly", "typeset", "true", "false",
+    "test", "[", "[[", ":", "pwd", "pushd", "popd", "dirs",
+    "alias", "unalias", "hash", "type", "command", "builtin",
+    "source", ".", "eval", "shift", "return", "break", "continue",
+])
+
+
+def load_settings_permissions():
+    """settings.json 4層から allow/deny パターンを読み込む。"""
+    allow_patterns = []
+    deny_patterns = []
+
+    # Git root を検出（cwd ベース）
+    git_root = None
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            git_root = result.stdout.strip()
+    except Exception:
+        pass
+
+    # 4層の設定ファイル
+    home = Path.home()
+    paths = [
+        home / ".claude" / "settings.json",
+        home / ".claude" / "settings.local.json",
+    ]
+    if git_root:
+        paths.extend([
+            Path(git_root) / ".claude" / "settings.json",
+            Path(git_root) / ".claude" / "settings.local.json",
+        ])
+
+    for path in paths:
+        try:
+            with open(path) as f:
+                settings = json.load(f)
+            perms = settings.get("permissions", {})
+            for pattern in perms.get("allow", []):
+                allow_patterns.append(pattern)
+            for pattern in perms.get("deny", []):
+                deny_patterns.append(pattern)
+        except (FileNotFoundError, json.JSONDecodeError):
+            continue
+
+    return allow_patterns, deny_patterns
+
+
+def extract_bash_pattern(permission_str):
+    """'Bash(cmd:*)' / 'Bash(cmd *)' / 'Bash(cmd)' → コマンドプレフィックスを抽出。
+    Bash以外のパターンはNoneを返す。"""
+    m = re.match(r'^Bash\((.+)\)$', permission_str)
+    if not m:
+        return None
+    inner = m.group(1)
+    # 末尾の :* や スペース* を除去してプレフィックス部分を取得
+    if inner.endswith(":*"):
+        return inner[:-2]
+    if inner.endswith(" *"):
+        return inner[:-2]
+    return inner
+
+
+def matches_bash_pattern(command, permission_str):
+    """コマンド文字列が Bash(...) パターンにマッチするか判定。"""
+    m = re.match(r'^Bash\((.+)\)$', permission_str)
+    if not m:
+        return False
+    inner = m.group(1)
+
+    if inner == "*":
+        return True
+
+    if ":" in inner:
+        prefix, glob_part = inner.split(":", 1)
+        if command == prefix:
+            return True
+        if command.startswith(prefix + " "):
+            remainder = command[len(prefix) + 1:]
+            return fnmatch.fnmatch(remainder, glob_part)
+        if command.startswith(prefix):
+            remainder = command[len(prefix):]
+            return fnmatch.fnmatch(remainder, glob_part)
+        return False
+
+    # スペース区切り: "git status *" 形式
+    if " *" in inner:
+        prefix = inner.replace(" *", "")
+        return command == prefix or command.startswith(prefix + " ")
+
+    # 完全一致
+    return fnmatch.fnmatch(command, inner)
+
+
+def split_compound_command(command):
+    """複合コマンドを &&, ||, ;, | で分割する。
+    クォート内の演算子は分割しない。簡易パーサー。"""
+    # メタ文字が含まれていなければ単一コマンド
+    if not re.search(r'[&|;]', command):
+        return [command.strip()]
+
+    segments = []
+    current = []
+    i = 0
+    in_single = False
+    in_double = False
+
+    while i < len(command):
+        c = command[i]
+
+        if c == "'" and not in_double:
+            in_single = not in_single
+            current.append(c)
+        elif c == '"' and not in_single:
+            in_double = not in_double
+            current.append(c)
+        elif c == '\\' and not in_single and i + 1 < len(command):
+            current.append(c)
+            current.append(command[i + 1])
+            i += 1
+        elif not in_single and not in_double:
+            if c == '&' and i + 1 < len(command) and command[i + 1] == '&':
+                seg = "".join(current).strip()
+                if seg:
+                    segments.append(seg)
+                current = []
+                i += 1  # skip second &
+            elif c == '|' and i + 1 < len(command) and command[i + 1] == '|':
+                seg = "".join(current).strip()
+                if seg:
+                    segments.append(seg)
+                current = []
+                i += 1  # skip second |
+            elif c == '|':
+                seg = "".join(current).strip()
+                if seg:
+                    segments.append(seg)
+                current = []
+            elif c == ';':
+                seg = "".join(current).strip()
+                if seg:
+                    segments.append(seg)
+                current = []
+            else:
+                current.append(c)
+        else:
+            current.append(c)
+        i += 1
+
+    seg = "".join(current).strip()
+    if seg:
+        segments.append(seg)
+
+    return segments if segments else [command.strip()]
+
+
+def strip_env_prefix(command):
+    """コマンド先頭の環境変数代入 (FOO=bar cmd ...) を除去。"""
+    pattern = re.compile(r'^(?:[A-Za-z_][A-Za-z0-9_]*=[^\s]*\s+)+(.+)$')
+    m = pattern.match(command)
+    if m:
+        return m.group(1)
+    return command
+
+
+def is_builtin(command):
+    """コマンドがシェルビルトインか判定。"""
+    cmd_name = command.split()[0] if command.split() else ""
+    return cmd_name in SHELL_BUILTINS
+
+
+def judge_with_settings(tool_name, tool_input):
+    """settings.json の allow/deny パターンで判定。
+    Returns:
+        ("ALLOW", summary) — 全コマンドが allow にマッチ
+        ("DENY", summary)  — いずれかが deny にマッチ
+        (None, None)       — 判定不能（codex にフォールバック）
+    """
+    if tool_name != "Bash":
+        return None, None
+
+    command = tool_input.get("command", "")
+    if not command:
+        return None, None
+
+    allow_patterns, deny_patterns = load_settings_permissions()
+    if not allow_patterns and not deny_patterns:
+        return None, None
+
+    segments = split_compound_command(command)
+
+    for seg in segments:
+        stripped = strip_env_prefix(seg)
+        # deny チェック（最優先）
+        for pattern in deny_patterns:
+            if matches_bash_pattern(stripped, pattern):
+                return "DENY", f"denyルールにマッチしたのだ: {stripped[:50]}"
+
+    all_allowed = True
+    for seg in segments:
+        stripped = strip_env_prefix(seg)
+        # ビルトインは自動許可
+        if is_builtin(stripped):
+            continue
+        # allow チェック
+        matched = False
+        for pattern in allow_patterns:
+            if matches_bash_pattern(stripped, pattern):
+                matched = True
+                break
+        if not matched:
+            all_allowed = False
+            break
+
+    if all_allowed:
+        # コマンドの概要を生成
+        if len(segments) == 1:
+            summary = f"{segments[0][:40]}を実行するのだ"
+        else:
+            summary = f"{segments[0].split()[0]}など{len(segments)}コマンドを実行するのだ"
+        return "ALLOW", summary
+
+    return None, None
 
 
 def build_prompt(tool_name, tool_input, cwd, description, custom_rules=None):
@@ -235,10 +471,6 @@ def main():
     if not auto_approve.get("enabled", False):
         sys.exit(1)
 
-    # codexがインストールされているか確認
-    if not shutil.which("codex"):
-        sys.exit(1)
-
     # hookデータからツール情報を抽出
     tool_name = data.get("tool_name", "")
     tool_input = data.get("tool_input", {})
@@ -246,14 +478,25 @@ def main():
     description = tool_input.get("command", "") or tool_input.get("description", "") or str(tool_input)[:200]
     session_id = data.get("session_id", "default")
 
-    # カスタムルールの取得
-    custom_rules = auto_approve.get("custom_rules", [])
-    if isinstance(custom_rules, str):
-        custom_rules = [custom_rules]
+    # --- 第1段: settings.json パターンマッチング（決定論的・高速） ---
+    settings_judgment, settings_summary = judge_with_settings(tool_name, tool_input)
 
-    # codexでリスク判定
-    prompt = build_prompt(tool_name, tool_input, cwd, description, custom_rules)
-    judgment, summary = judge_with_codex(prompt)
+    if settings_judgment == "DENY":
+        judgment, summary = "RISK", settings_summary
+    elif settings_judgment == "ALLOW":
+        judgment, summary = "SAFE", settings_summary
+    else:
+        # --- 第2段: codex LLM判定（フォールバック） ---
+        if not shutil.which("codex"):
+            # codex未インストール: 判定不能
+            judgment, summary = None, None
+        else:
+            custom_rules = auto_approve.get("custom_rules", [])
+            if isinstance(custom_rules, str):
+                custom_rules = [custom_rules]
+
+            prompt = build_prompt(tool_name, tool_input, cwd, description, custom_rules)
+            judgment, summary = judge_with_codex(prompt)
 
     # ログ記録（SAFE/RISK両方）
     log_path_str = auto_approve.get("log_file", "")
@@ -262,9 +505,13 @@ def main():
     else:
         log_path = DEFAULT_LOG_PATH
 
+    # 判定方式を記録
+    judge_method = "settings" if settings_judgment else "codex"
+
     log_entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "judgment": judgment or "UNKNOWN",
+        "judge_method": judge_method,
         "tool_name": tool_name,
         "description": description,
         "summary": summary or "",
