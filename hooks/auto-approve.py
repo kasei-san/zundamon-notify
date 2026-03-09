@@ -29,10 +29,26 @@ def load_config():
         return None
 
 
+MAX_LOG_SIZE = 512 * 1024  # 512KB
+KEEP_LINES = 500  # ローテート後に残す行数
+
+
+def rotate_log_if_needed(log_path):
+    """ログファイルがMAX_LOG_SIZEを超えたら最新KEEP_LINES行だけ残す。"""
+    try:
+        if not log_path.exists() or log_path.stat().st_size <= MAX_LOG_SIZE:
+            return
+        lines = log_path.read_text().splitlines()
+        log_path.write_text("\n".join(lines[-KEEP_LINES:]) + "\n")
+    except Exception:
+        pass
+
+
 def write_log(log_path, entry):
-    """JSON Lines形式でログを追記。"""
+    """JSON Lines形式でログを追記。サイズ超過時は自動ローテート。"""
     try:
         log_path.parent.mkdir(parents=True, exist_ok=True)
+        rotate_log_if_needed(log_path)
         with open(log_path, "a") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception:
@@ -97,6 +113,7 @@ def judge_with_codex(prompt):
     if not codex_path:
         return None, None
 
+    debug_log = Path.home() / ".config" / "zundamon-notify" / "auto-approve-debug.log"
     try:
         result = subprocess.run(
             ["perl", "-e", "alarm 10; exec @ARGV", codex_path, "exec", "--ephemeral", "-"],
@@ -105,6 +122,14 @@ def judge_with_codex(prompt):
             text=True,
             timeout=15,
         )
+        # デバッグログ出力
+        write_log(debug_log, {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "codex_path": codex_path,
+            "returncode": result.returncode,
+            "stdout": result.stdout[:500],
+            "stderr": result.stderr[:500],
+        })
         if result.returncode == 0:
             output = result.stdout.strip()
             # 全行をスキャンしてSAFE/RISKで始まる行を探す（最後に見つかったものを採用）
@@ -123,7 +148,8 @@ def judge_with_codex(prompt):
             if judgment:
                 return judgment, summary
         return None, None
-    except Exception:
+    except Exception as e:
+        write_log(debug_log, {"timestamp": datetime.now(timezone.utc).isoformat(), "exception": str(e)})
         return None, None
 
 
