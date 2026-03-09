@@ -186,6 +186,11 @@ function getCurrentRequest() {
 window.electronAPI.onSessionInfo((info) => {
   console.log('Session info received:', info);
 
+  // モニター用ずんだもん: プルプル震えアニメーション
+  if (info.sessionId === 'zundamon-monitor') {
+    character.classList.add('monitor-shake');
+  }
+
   // 色テーマ適用
   if (info.colorTheme) {
     const theme = info.colorTheme;

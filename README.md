@@ -345,6 +345,15 @@ grep '"judgment":"RISK"' ~/.config/zundamon-notify/auto-approve.log
 grep '"judgment":"UNKNOWN"' ~/.config/zundamon-notify/auto-approve.log
 ```
 
+### 連続エラー監視
+
+UNKNOWN 判定が **3回連続** すると、モニター用ずんだもん（別ウィンドウ）が自動出現して問題を通知します。codex API の一時的な不調などで自動許可が動いていない状態を検知できます。
+
+- カウントファイル: `~/.config/zundamon-notify/error-streak.count`
+- SAFE/RISK 判定でカウントリセット
+- 通知は閾値到達時に1回のみ（次の成功→失敗サイクルで再通知）
+- デバッグログ: `~/.config/zundamon-notify/auto-approve-debug.log`（codex の生出力を記録）
+
 ## 動作確認（手動テスト）
 
 アプリ起動中に socat で直接メッセージを送信してテストできます。

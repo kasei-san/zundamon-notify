@@ -11,13 +11,20 @@ exit 1 → 従来フロー（Electron通知）に進む
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-CONFIG_PATH = Path.home() / ".config" / "zundamon-notify" / "config.json"
-DEFAULT_LOG_PATH = Path.home() / ".config" / "zundamon-notify" / "auto-approve.log"
+CONFIG_DIR = Path.home() / ".config" / "zundamon-notify"
+CONFIG_PATH = CONFIG_DIR / "config.json"
+DEFAULT_LOG_PATH = CONFIG_DIR / "auto-approve.log"
+STREAK_FILE = CONFIG_DIR / "error-streak.count"
+SOCKET_PATH = "/tmp/zundamon-claude.sock"
+MONITOR_SESSION_ID = "zundamon-monitor"
+ERROR_STREAK_THRESHOLD = 3
 
 
 def load_config():
@@ -53,6 +60,61 @@ def write_log(log_path, entry):
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception:
         pass
+
+
+def read_error_streak():
+    """連続エラー回数を読み取る。ファイル未存在時は0。"""
+    try:
+        return int(STREAK_FILE.read_text().strip())
+    except (FileNotFoundError, ValueError):
+        return 0
+
+
+def write_error_streak(count):
+    """連続エラー回数を書き込む。"""
+    try:
+        STREAK_FILE.parent.mkdir(parents=True, exist_ok=True)
+        STREAK_FILE.write_text(str(count))
+    except Exception:
+        pass
+
+
+def send_monitor_notification(message):
+    """モニター用ずんだもん（別ウィンドウ）にnotificationを送信。"""
+    try:
+        sock_path = Path(SOCKET_PATH)
+        if not sock_path.exists():
+            return
+        notif = json.dumps({
+            "type": "notification",
+            "id": str(uuid.uuid4()),
+            "session_id": MONITOR_SESSION_ID,
+            "cwd": "",
+            "message": message,
+        }, ensure_ascii=False)
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(2)
+            s.connect(SOCKET_PATH)
+            s.sendall((notif + "\n").encode())
+    except Exception:
+        pass
+
+
+def update_error_streak(judgment):
+    """判定結果に応じてエラーストリークを更新し、閾値到達時に通知。"""
+    if judgment in ("SAFE", "RISK"):
+        write_error_streak(0)
+        return
+
+    streak = read_error_streak() + 1
+    write_error_streak(streak)
+
+    if streak == ERROR_STREAK_THRESHOLD:
+        send_monitor_notification(
+            f"⚠️ codex判定が{ERROR_STREAK_THRESHOLD}回連続で失敗しているのだ！"
+            "自動許可が動いていない可能性があるのだ。"
+            "デバッグログ: ~/.config/zundamon-notify/auto-approve-debug.log"
+        )
 
 
 def build_prompt(tool_name, tool_input, cwd, description, custom_rules=None):
@@ -210,6 +272,9 @@ def main():
         "session_id": session_id,
     }
     write_log(log_path, log_entry)
+
+    # エラーストリーク管理（閾値到達時にモニター用ずんだもんで通知）
+    update_error_streak(judgment)
 
     if judgment == "SAFE":
         # タブ区切りで判定と概要を出力
