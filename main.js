@@ -88,8 +88,18 @@ function createSessionWindow(sessionId, { pid, cwd }) {
   const theme = COLOR_THEMES[nextThemeIndex % COLOR_THEMES.length];
   nextThemeIndex++;
 
+  // ロード完了前のメッセージをキューイング
+  win._ready = false;
+  win._pendingMessages = [];
+
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('session-info', { sessionId, pid, cwd, colorTheme: theme });
+    win._ready = true;
+    // キューに溜まったメッセージを順次送信
+    for (const { channel, data } of win._pendingMessages) {
+      win.webContents.send(channel, data);
+    }
+    win._pendingMessages = [];
   });
 
   win.on('closed', () => {
@@ -267,7 +277,11 @@ function startSocketServer() {
     onMessage: (sessionId, channel, data) => {
       const win = windows.get(sessionId);
       if (win && !win.isDestroyed()) {
-        win.webContents.send(channel, data);
+        if (win._ready) {
+          win.webContents.send(channel, data);
+        } else {
+          win._pendingMessages.push({ channel, data });
+        }
       }
       // メッセージ送信後にPermission先頭を最前面に再適用
       if (permissionFIFO.length > 0) {
