@@ -428,8 +428,9 @@ def judge_with_codex(prompt):
             "stdout": result.stdout[:500],
             "stderr": result.stderr[:500],
         })
-        if result.returncode == 0:
-            output = result.stdout.strip()
+        # returncodeに関わらずstdoutをパース（SIGALRM=-14でも応答が出力済みの場合がある）
+        output = result.stdout.strip() if result.stdout else ""
+        if output:
             # 全行をスキャンしてSAFE/RISKで始まる行を探す（最後に見つかったものを採用）
             lines = output.split("\n")
             judgment = None
@@ -445,6 +446,21 @@ def judge_with_codex(prompt):
                     summary = stripped.split(":", 1)[1].strip() if ":" in stripped else stripped[4:].lstrip()
             if judgment:
                 return judgment, summary
+        return None, None
+    except subprocess.TimeoutExpired as e:
+        # タイムアウトでもpartial outputがあればパースを試みる
+        stdout = e.stdout or ""
+        write_log(debug_log, {"timestamp": datetime.now(timezone.utc).isoformat(), "exception": str(e), "partial_stdout": stdout[:500]})
+        if stdout:
+            for line in stdout.strip().split("\n"):
+                stripped = line.strip()
+                upper = stripped.upper()
+                if upper.startswith("SAFE"):
+                    summary = stripped.split(":", 1)[1].strip() if ":" in stripped else stripped[4:].lstrip()
+                    return "SAFE", summary
+                elif upper.startswith("RISK"):
+                    summary = stripped.split(":", 1)[1].strip() if ":" in stripped else stripped[4:].lstrip()
+                    return "RISK", summary
         return None, None
     except Exception as e:
         write_log(debug_log, {"timestamp": datetime.now(timezone.utc).isoformat(), "exception": str(e)})
