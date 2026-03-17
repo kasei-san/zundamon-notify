@@ -62,6 +62,11 @@ req = {
     "message": message,
 }
 print(json.dumps(req, ensure_ascii=False))
+
+# Marker file: agent_stopped を作成
+marker_dir = "/tmp/zundamon-markers/" + session_id
+os.makedirs(marker_dir, exist_ok=True)
+open(os.path.join(marker_dir, ".agent_stopped"), "w").close()
 PYEOF
 
 REQUEST=$(ZUNDAMON_INPUT="$INPUT" python3 "$PYSCRIPT" 2>/dev/null)
