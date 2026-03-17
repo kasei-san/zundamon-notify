@@ -55,6 +55,16 @@ if tool_name:
         'message': label
     }
     print(json.dumps(status, ensure_ascii=False))
+
+# Marker file: UserPromptSubmit（tool_nameが空）の場合に作成
+if not tool_name:
+    marker_dir = '/tmp/zundamon-markers/' + session_id
+    os.makedirs(marker_dir, exist_ok=True)
+    open(os.path.join(marker_dir, '.prompt_submitted'), 'w').close()
+    try:
+        os.remove(os.path.join(marker_dir, '.agent_stopped'))
+    except FileNotFoundError:
+        pass
 " 2>/dev/null)
 
 # MESSAGESが空ならフォールバック（旧形式）
