@@ -112,6 +112,10 @@ npm install -g @openai/codex
           {
             "type": "command",
             "command": "bash ~/work/zundamon-notify/hooks/zundamon-dismiss.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash ~/work/zundamon-notify/hooks/zundamon-pr-watch.sh"
           }
         ]
       }
@@ -201,6 +205,7 @@ npm start
 | **PreToolUse** | ツール実行開始時に残っている吹き出し（Permission等）を自動dismiss |
 | **PostToolUse** | ツール実行完了時に残っている吹き出しを自動dismiss |
 | **SessionEnd** | セッション終了時にそのセッションのずんだもんウィンドウを閉じる |
+| **PostToolUse** (PR監視) | ツール出力からGitHub PR URLを検出し、60秒間隔でマージ状態をポーリング。マージされたら吹き出しで通知 |
 
 ツール使用時（PreToolUse hook）に、ずんだもんの足元に黒背景＋テーマカラーのステータステキスト（回転スピナー付き）が表示されます。Claude Code が今何をしているか（「コマンド実行中」「ファイル編集中」等）がリアルタイムにわかります。
 
@@ -259,7 +264,8 @@ zundamon-notify/
 │   └── renderer.js            # UI 制御ロジック
 ├── src/
 │   ├── socket-server.js       # UDS サーバー（セッション単位管理）
-│   └── protocol.js            # メッセージプロトコル定義
+│   ├── protocol.js            # メッセージプロトコル定義
+│   └── pr-monitor.js          # PRマージ検知モニター（ghコマンドでポーリング）
 ├── assets/
 │   ├── zundamon.png           # 立ち絵 PNG（196x300px、緑・オリジナル）
 │   ├── zundamon-{color}.png   # 色違い画像（scripts/generate-variants.py で生成）
@@ -272,7 +278,8 @@ zundamon-notify/
 │   ├── zundamon-stop.sh       # Stop hook（入力待ち通知）
 │   ├── zundamon-pre-dismiss.sh # UserPromptSubmit/PreToolUse hook（吹き出しdismiss）
 │   ├── zundamon-dismiss.sh    # PostToolUse hook（吹き出しdismiss）
-│   └── zundamon-session-end.sh # SessionEnd hook（セッション終了通知）
+│   ├── zundamon-session-end.sh # SessionEnd hook（セッション終了通知）
+│   └── zundamon-pr-watch.sh   # PostToolUse hook（PR URL検出・監視登録）
 ├── .claude/
 │   └── skills/
 │       └── issue-and-fix/     # 問題→issue→plan→修正→PR の一気通貫スキル
@@ -366,6 +373,10 @@ echo '{"type":"stop","id":"test","message":"入力を待っているのだ！"}'
 # Permission Request テスト（セッション付き、別ウィンドウが出る）
 echo '{"type":"permission_request","id":"test","session_id":"test-session","cwd":"/Users/you/work/project","pid":12345,"tool_name":"Bash","tool_input":{"command":"echo hello"},"description":"echo hello"}' \
   | socat -t 30 - UNIX-CONNECT:/tmp/zundamon-claude.sock
+
+# PR監視テスト（PRのマージを監視開始）
+echo '{"type":"pr_monitor","id":"pr-test","session_id":"test-session","url":"https://github.com/owner/repo/pull/123"}' \
+  | socat -t 2 - UNIX-CONNECT:/tmp/zundamon-claude.sock
 
 # セッション終了テスト（ウィンドウが閉じる）
 echo '{"type":"session_end","id":"end","session_id":"test-session"}' \

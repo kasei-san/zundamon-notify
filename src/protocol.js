@@ -10,6 +10,7 @@ const MESSAGE_TYPES = {
   DISMISS: 'dismiss',
   STATUS_UPDATE: 'status_update',
   SESSION_END: 'session_end',
+  PR_MONITOR: 'pr_monitor',
 };
 
 /**

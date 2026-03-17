@@ -6,6 +6,7 @@
 const net = require('net');
 const fs = require('fs');
 const { MESSAGE_TYPES, parseMessage, serializeResponse } = require('./protocol');
+const { PrMonitor } = require('./pr-monitor');
 
 const SOCKET_PATH = '/tmp/zundamon-claude.sock';
 
@@ -18,12 +19,22 @@ class SocketServer {
    * @param {function} callbacks.onPermissionRequest - (session_id) ショートカット登録用
    * @param {function} callbacks.onSessionPermissionsDismiss - (session_id) 特定セッションのpendingが解消
    * @param {function} callbacks.onAllPermissionsDismiss - () 全セッションのpendingが解消
+   * @param {function} callbacks.onPrMerged - (info: {url, sessionId, owner, repo, number}) PRマージ検知
    */
   constructor(callbacks) {
     this.callbacks = callbacks;
     this.server = null;
     // セッション単位の管理: session_id -> { pid, cwd, pendingConnections: Map<id, socket>, lastMessageAt: number }
     this.sessions = new Map();
+    // PRモニター
+    this.prMonitor = new PrMonitor({
+      onMerged: (info) => {
+        if (this.callbacks.onPrMerged) {
+          this.callbacks.onPrMerged(info);
+        }
+      },
+    });
+    this.prMonitor.startPolling();
   }
 
   /**
@@ -228,10 +239,21 @@ class SocketServer {
           endSession.pendingConnections.clear();
           this.sessions.delete(sessionId);
         }
+        // このセッションのPR監視を解除
+        this.prMonitor.removeBySession(sessionId);
         if (this.callbacks.onSessionEnd) {
           this.callbacks.onSessionEnd(sessionId);
         }
         this.checkAllPermissionsDismissed(sessionId);
+        socket.end();
+        break;
+      }
+
+      case MESSAGE_TYPES.PR_MONITOR: {
+        this.getOrCreateSession(sessionId, msg);
+        if (msg.url) {
+          this.prMonitor.addPr(msg.url, sessionId);
+        }
         socket.end();
         break;
       }
@@ -292,6 +314,9 @@ class SocketServer {
   }
 
   stop() {
+    // PRモニターを停止
+    this.prMonitor.stopPolling();
+
     // 保持中の全セッション接続を閉じる
     for (const [, session] of this.sessions) {
       for (const [, socket] of session.pendingConnections) {

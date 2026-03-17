@@ -315,6 +315,23 @@ function startSocketServer() {
       permissionFIFO.length = 0;
       updateActiveSession();
     },
+    onPrMerged: ({ url, sessionId, owner, repo, number }) => {
+      console.log(`PR merged: ${url} (session: ${sessionId})`);
+      const win = windows.get(sessionId);
+      if (win && !win.isDestroyed()) {
+        const notificationData = {
+          type: 'notification',
+          id: `pr-merged-${number}-${Date.now()}`,
+          session_id: sessionId,
+          message: `\uD83C\uDF89 PR #${number} がマージされたのだ！\n${owner}/${repo}`,
+        };
+        if (win._ready) {
+          win.webContents.send('notification', notificationData);
+        } else {
+          win._pendingMessages.push({ channel: 'notification', data: notificationData });
+        }
+      }
+    },
   });
   socketServer.start();
 }
