@@ -23,7 +23,7 @@ Claude Code で作業中、PermissionRequest（許可確認）や入力待ちが
 ## 必要なもの
 
 - **Node.js** (v18 以上)
-- **socat** (`brew install socat`)
+- **socat** (`brew install socat`) ※統一CLI (`zundamon-cli.js`) を使う場合は不要
 
 ## セットアップ
 
@@ -131,6 +131,94 @@ npm install -g @openai/codex
 ```
 
 > 既存の hooks 設定がある場合は、`hooks` 配列にエントリを追加する形でマージしてください。
+
+### 統一CLI版（推奨）
+
+`hooks/zundamon-cli.js` を使うと、`python3` や `socat` への依存なしに全hookを1つのNode.jsスクリプトで処理できます。
+
+```json
+{
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/work/zundamon-notify/hooks/zundamon-cli.js permission"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/work/zundamon-notify/hooks/zundamon-cli.js stop"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/work/zundamon-notify/hooks/zundamon-cli.js notify"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/work/zundamon-notify/hooks/zundamon-cli.js dismiss"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/work/zundamon-notify/hooks/zundamon-cli.js dismiss"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/work/zundamon-notify/hooks/zundamon-cli.js dismiss"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ~/work/zundamon-notify/hooks/zundamon-cli.js session-end"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+> 統一CLI版は既存のbashスクリプトと完全互換です。`auto-approve.py` と `codex` による要約機能もそのまま動作します。
 
 ### Permission 自動許可の設定（オプション）
 
@@ -267,6 +355,7 @@ zundamon-notify/
 │   ├── icon.png               # アプリアイコン PNG（512×512、顔部分）
 │   └── icon.icns              # macOS アプリアイコン（icon.png から生成）
 ├── hooks/
+│   ├── zundamon-cli.js        # 統一CLI（Node.js、socat/python3不要）
 │   ├── auto-approve.py        # codexによる自動リスク判定（Permission自動許可）
 │   ├── zundamon-permission.sh # PermissionRequest hook（ブロッキング、自動判定付き）
 │   ├── zundamon-notify.sh     # Notification hook
