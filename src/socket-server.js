@@ -6,6 +6,7 @@
 const net = require('net');
 const fs = require('fs');
 const { MESSAGE_TYPES, parseMessage, serializeResponse } = require('./protocol');
+const { cleanupSession: cleanupMarkerFiles } = require('./marker-files');
 
 const SOCKET_PATH = '/tmp/zundamon-claude.sock';
 
@@ -228,6 +229,8 @@ class SocketServer {
           endSession.pendingConnections.clear();
           this.sessions.delete(sessionId);
         }
+        // マーカーファイルのクリーンアップ
+        cleanupMarkerFiles(sessionId);
         if (this.callbacks.onSessionEnd) {
           this.callbacks.onSessionEnd(sessionId);
         }
