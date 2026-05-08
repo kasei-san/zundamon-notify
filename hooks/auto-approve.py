@@ -494,6 +494,11 @@ def main():
     description = tool_input.get("command", "") or tool_input.get("description", "") or str(tool_input)[:200]
     session_id = data.get("session_id", "default")
 
+    # AskUserQuestion はユーザー応答を待つツールで、auto-approve の対象外
+    # （allow を返すと「Allowed by PermissionRequest hook」がユーザー応答と二重表示される）
+    if tool_name == "AskUserQuestion":
+        sys.exit(1)
+
     # --- 第1段: settings.json パターンマッチング（決定論的・高速） ---
     settings_judgment, settings_summary = judge_with_settings(tool_name, tool_input)
 
