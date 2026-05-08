@@ -164,6 +164,12 @@ async function handlePermission(data) {
   process.on('SIGTERM', cleanup);
   process.on('SIGINT', cleanup);
 
+  // AskUserQuestion はユーザー応答を待つツール。allow を返すと
+  // 「Allowed by PermissionRequest hook」がユーザー応答と二重表示されるためスキップ
+  if (data.tool_name === 'AskUserQuestion') {
+    process.exit(0);
+  }
+
   // ソケットが存在しなければフォールバック
   if (!fs.existsSync(SOCKET_PATH)) {
     process.exit(0);
