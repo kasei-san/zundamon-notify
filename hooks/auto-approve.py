@@ -426,7 +426,7 @@ def judge_with_codex(prompt):
             "codex_path": codex_path,
             "returncode": result.returncode,
             "stdout": result.stdout[:500],
-            "stderr": result.stderr[:500],
+            "stderr": result.stderr[-2000:],
         })
         # returncodeに関わらずstdoutをパース（SIGALRM=-14でも応答が出力済みの場合がある）
         output = result.stdout.strip() if result.stdout else ""
