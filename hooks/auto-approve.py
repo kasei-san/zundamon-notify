@@ -414,7 +414,7 @@ def judge_with_codex(prompt):
     debug_log = Path.home() / ".config" / "zundamon-notify" / "auto-approve-debug.log"
     try:
         result = subprocess.run(
-            ["perl", "-e", "alarm 10; exec @ARGV", codex_path, "exec", "--ephemeral", "--skip-git-repo-check", "-"],
+            ["perl", "-e", "alarm 10; exec @ARGV", codex_path, "exec", "--ephemeral", "--skip-git-repo-check", "-m", "gpt-5.5", "-"],
             input=prompt,
             capture_output=True,
             text=True,
