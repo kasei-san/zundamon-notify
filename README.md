@@ -409,7 +409,7 @@ codex CLI を使って Permission リクエストのリスクを自動判定し�
 |------|-----|-----------|------|
 | `auto_approve.enabled` | boolean | `false` | 自動判定の有効/無効 |
 | `auto_approve.custom_rules` | string[] | `[]` | ユーザー定義の判定ルール（既存ルールより優先） |
-| `auto_approve.codex_model` | string | なし | codex 判定に使うモデル。未指定なら `~/.codex/config.toml` の既定モデル |
+| `auto_approve.codex_model` | string | なし | codex 判定に使うモデル。未指定なら codex の既定モデル（`~/.codex/config.toml`）。判定は10秒で打ち切るため、既定モデルが遅く UNKNOWN が続くときは速いモデルを指定する |
 | `auto_approve.log_file` | string | `~/.config/zundamon-notify/auto-approve.log` | 自動許可ログのパス |
 
 ### 判定基準
