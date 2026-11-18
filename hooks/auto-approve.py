@@ -405,20 +405,18 @@ Description: {description}
 Your assessment (SAFE or RISK with summary):"""
 
 
-DEFAULT_CODEX_MODEL = "gpt-5.5"
-
-
 def judge_with_codex(prompt, codex_model=None):
     """codex CLIでリスク判定を実行。(判定, 概要)のタプルを返す。エラー時は(None, None)。"""
     codex_path = shutil.which("codex")
     if not codex_path:
         return None, None
 
-    model = codex_model or DEFAULT_CODEX_MODEL
+    # 未指定なら -m を付けず ~/.codex/config.toml の既定モデルに任せる（固定名はアカウント側の対応終了で壊れるため）
+    model_args = ["-m", codex_model] if codex_model else []
     debug_log = Path.home() / ".config" / "zundamon-notify" / "auto-approve-debug.log"
     try:
         result = subprocess.run(
-            ["perl", "-e", "alarm 10; exec @ARGV", codex_path, "exec", "--ephemeral", "--skip-git-repo-check", "-m", model, "-"],
+            ["perl", "-e", "alarm 10; exec @ARGV", codex_path, "exec", "--ephemeral", "--skip-git-repo-check", *model_args, "-"],
             input=prompt,
             capture_output=True,
             text=True,
